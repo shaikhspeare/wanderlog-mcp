@@ -1,5 +1,10 @@
 # wanderlog-mcp
 
+[![npm](https://img.shields.io/npm/v/wanderlog-mcp)](https://www.npmjs.com/package/wanderlog-mcp)
+[![npm downloads](https://img.shields.io/npm/dm/wanderlog-mcp)](https://www.npmjs.com/package/wanderlog-mcp)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org/)
+
 An MCP server that lets Claude (or any MCP-compatible agent) view and build [Wanderlog](https://wanderlog.com) trip itineraries through conversation.
 
 Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
@@ -9,6 +14,47 @@ Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
 The agent calls the tools, interleaves places and notes for each day, adds hotel blocks and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
 
 **See a real example:** [14-day Japan Golden Route](https://wanderlog.com/plan/dmvegdhqsa) — built entirely by an AI agent using this MCP server.
+
+## What's New in v0.1.0
+
+- Full itinerary building: places, notes, hotels, and checklists in a single conversation
+- `wanderlog_search_places` — find real-world places near any destination using Wanderlog's place database
+- `wanderlog_add_note` — interleave transit tips, booking info, and local advice between places
+- `wanderlog_add_checklist` — pre-trip and per-day checklists (visa, currency, timed-entry tickets)
+- MCP server instructions injected at startup so Claude builds complete itineraries automatically
+- Startup auth probe — catches expired cookies immediately instead of failing mid-conversation
+
+## Example Prompts
+
+```
+"What trips do I have in Wanderlog?"
+```
+```
+"Create a 7-day itinerary for Lisbon starting June 1 — include restaurants, day trips,
+and a hotel near the waterfront."
+```
+```
+"Add a day trip to Sintra on day 3 of my Lisbon trip."
+```
+```
+"I'm spending 5 days in Tokyo — build me a full itinerary with museum visits, ramen spots,
+and a ryokan in Shinjuku."
+```
+```
+"Look at my Barcelona trip and add practical notes for getting between each place."
+```
+```
+"Add a pre-trip checklist to my Paris trip — visa, currency, offline maps, travel insurance."
+```
+```
+"Move my Rome trip back by two weeks."
+```
+```
+"Give me the shareable link to my Kyoto itinerary."
+```
+```
+"Remove the Colosseum from day 2 of my Rome trip."
+```
 
 ## Tools
 
@@ -30,7 +76,7 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 - **Node.js 22 or newer**
 - **A [Wanderlog](https://wanderlog.com) account**
-- An MCP-compatible client: **Claude Code**, **Claude Desktop**, **OpenAI Codex**, or any stdio MCP host
+- An MCP-compatible client: Claude Code, Claude Desktop, OpenAI Codex, Cursor, VS Code, or any stdio MCP host
 
 ## Setup
 
@@ -69,21 +115,6 @@ claude mcp add wanderlog-mcp npx wanderlog-mcp \
   --env WANDERLOG_COOKIE="s%3A...your value here..."
 ```
 
-#### OpenAI Codex
-
-Edit `~/.codex/config.toml`:
-
-```toml
-[mcp_servers.wanderlog]
-command = "npx"
-args = ["wanderlog-mcp"]
-
-[mcp_servers.wanderlog.env]
-WANDERLOG_COOKIE = "s%3A...your value here..."
-```
-
-Run `/mcp` inside Codex to confirm the server loaded.
-
 #### Claude Desktop
 
 Edit `claude_desktop_config.json`:
@@ -107,6 +138,64 @@ Edit `claude_desktop_config.json`:
 ```
 
 Restart Claude Desktop after saving.
+
+#### Cursor
+
+Settings → MCP → Add server, or edit `~/.cursor/mcp.json`:
+
+```json
+{
+  "mcpServers": {
+    "wanderlog": {
+      "command": "npx",
+      "args": ["wanderlog-mcp"],
+      "env": {
+        "WANDERLOG_COOKIE": "s%3A...your value here..."
+      }
+    }
+  }
+}
+```
+
+#### VS Code (GitHub Copilot)
+
+Add to your workspace `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "wanderlog": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["wanderlog-mcp"],
+      "env": {
+        "WANDERLOG_COOKIE": "s%3A...your value here..."
+      }
+    }
+  }
+}
+```
+
+#### OpenAI Codex
+
+Edit `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.wanderlog]
+command = "npx"
+args = ["wanderlog-mcp"]
+
+[mcp_servers.wanderlog.env]
+WANDERLOG_COOKIE = "s%3A...your value here..."
+```
+
+Run `/mcp` inside Codex to confirm the server loaded.
+
+#### Smithery (one-click install)
+
+```bash
+npx @smithery/cli install wanderlog-mcp --client claude
+```
 
 ### Step 3 — Verify
 
@@ -139,6 +228,20 @@ The server injects instructions into the MCP `initialize` response that tell the
 - wanderlog-mcp runs entirely on your machine — there's no relay server
 - The startup auth probe validates your cookie without printing its value
 - To revoke access: log out of wanderlog.com (invalidates all sessions), then re-capture
+
+## Contributing
+
+Pull requests are welcome. Before submitting:
+
+```bash
+npm run build && npm run test
+```
+
+For changes to transport or tool code, also run:
+
+```bash
+npm run test:integration
+```
 
 ## Disclaimer
 
