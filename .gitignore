@@ -1,0 +1,9 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+*.har
+*.log
+.DS_Store
+evals/reports/

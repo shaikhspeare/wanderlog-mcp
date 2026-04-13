@@ -1,0 +1,33 @@
+{
+  "name": "wanderdog",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "wanderdog": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx --env-file=.env src/index.ts",
+    "probe": "node --env-file=.env probe.mjs",
+    "test": "vitest run tests/unit",
+    "test:watch": "vitest tests/unit",
+    "test:integration": "node --env-file=.env ./node_modules/vitest/vitest.mjs run tests/integration",
+    "test:all": "npm run test && npm run test:integration",
+    "typecheck": "tsc --noEmit",
+    "eval": "node --env-file=.env --import tsx evals/run.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "ws": "^8.18.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.40.0",
+    "@types/node": "^22.10.2",
+    "@types/ws": "^8.5.13",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
