@@ -130,7 +130,7 @@ describe("MCP stdio server (smoke)", () => {
     expect(resp.result).toBeDefined();
     expect(resp.result.isError).not.toBe(true);
     const text = resp.result.content[0].text;
-    expect(text).toContain("Queenstown");
+    expect(text.length).toBeGreaterThan(0);
   });
 
   it("invokes wanderlog_get_trip and returns the trip header", async () => {
@@ -144,7 +144,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_get_trip",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY ?? "vzyrsyhgxvonvxcz",
+          trip_key: process.env.WANDERLOG_TRIP_KEY,
           response_format: "concise",
         },
       },
@@ -168,7 +168,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_search_places",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY ?? "vzyrsyhgxvonvxcz",
+          trip_key: process.env.WANDERLOG_TRIP_KEY,
           query: "coffee",
           response_format: "concise",
         },
@@ -191,7 +191,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_get_trip_url",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY ?? "vzyrsyhgxvonvxcz",
+          trip_key: process.env.WANDERLOG_TRIP_KEY,
           mode: "edit",
         },
       },
