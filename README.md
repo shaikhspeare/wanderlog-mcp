@@ -28,7 +28,7 @@ The agent calls the tools, interleaves places and notes for each day, adds a hot
 
 - **Node.js 22 or newer**
 - **A [Wanderlog](https://wanderlog.com) account**
-- An MCP-compatible client: **Claude Code**, **Claude Desktop**, or any stdio MCP host
+- An MCP-compatible client: **Claude Code**, **Claude Desktop**, **OpenAI Codex**, or any stdio MCP host
 
 ## Setup
 
@@ -66,6 +66,21 @@ Wanderlog doesn't have a public API, so wanderlog-mcp authenticates using your b
 claude mcp add wanderlog-mcp npx wanderlog-mcp \
   --env WANDERLOG_COOKIE="s%3A...your value here..."
 ```
+
+#### OpenAI Codex
+
+Edit `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.wanderlog]
+command = "npx"
+args = ["wanderlog-mcp"]
+
+[mcp_servers.wanderlog.env]
+WANDERLOG_COOKIE = "s%3A...your value here..."
+```
+
+Run `/mcp` inside Codex to confirm the server loaded.
 
 #### Claude Desktop
 
