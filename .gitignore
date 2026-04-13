@@ -6,4 +6,6 @@ dist/
 *.har
 *.log
 .DS_Store
-evals/reports/
+docs/
+evals/
+CLAUDE.md
