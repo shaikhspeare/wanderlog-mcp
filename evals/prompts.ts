@@ -175,6 +175,24 @@ export const EVAL_PROMPTS: EvalPrompt[] = [
     expectedTools: ["wanderlog_update_trip_dates"],
   },
 
+  // ─── Itinerary building (end-to-end showcase) ──────────────────────
+  {
+    id: "IT1",
+    category: "itinerary",
+    mutation: true,
+    prompt:
+      "Create a 15-day trip covering Tokyo, Kyoto, and Osaka in Japan, starting 2026-10-01 and ending 2026-10-15.",
+    rubric:
+      "Agent must call wanderdog_create_trip, then for each day interleave wanderlog_add_place + wanderlog_add_note (not batched). Must call wanderlog_add_hotel for the full stay and wanderlog_add_checklist at least once (pre-trip). Fails if any day has places without companion notes, or if all notes come after all places on the same day.",
+    expectedTools: [
+      "wanderlog_create_trip",
+      "wanderlog_add_place",
+      "wanderlog_add_note",
+      "wanderlog_add_hotel",
+      "wanderlog_add_checklist",
+    ],
+  },
+
   // ─── Held-out subset (don't tune on these) ─────────────────────────
   {
     id: "H1",

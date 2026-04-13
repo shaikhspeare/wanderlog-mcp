@@ -63,17 +63,24 @@ When a user asks you to create an itinerary or plan a trip, build it in full —
 of places. A complete itinerary uses all four building blocks on every day:
 
   1. wanderlog_add_place — 3-5 places per day (attractions, restaurants, activities)
-  2. wanderlog_add_note — after each place or group of places, add a note with practical
-     context: how to get there from the previous stop, what to order or see, whether advance
-     booking is required, opening hours, and local tips. Every day should have notes.
+  2. wanderlog_add_note — after EACH place, add a note with practical context: how to get
+     there from the previous stop, what to order or see, whether advance booking is required,
+     opening hours, and local tips. Every day should have notes between places.
   3. wanderlog_add_hotel — one hotel block covering the full stay
   4. wanderlog_add_checklist — at least one pre-trip checklist (visa, currency, offline maps,
      return ticket, travel insurance) and per-day checklists for days that need advance prep
      (timed-entry tickets, free-but-must-book venues, etc.)
 
-Work day by day: add the places for a day, then immediately add the notes for that day, then
-move to the next day. Do not add all places across all days first and leave notes for later —
-they will be skipped.
+IMPORTANT — interleave places and notes. For each day, follow this exact pattern:
+  wanderlog_add_place (place 1)
+  wanderlog_add_note (tips/transit for place 1)
+  wanderlog_add_place (place 2)
+  wanderlog_add_note (tips/transit for place 2)
+  ... and so on.
+
+Do NOT batch all places first and then add notes — that puts all notes at the bottom of the
+day instead of between the places where they belong. The order matters because blocks appear
+in the itinerary in the order they are added.
 
 Places without notes are pins on a map. Notes are what make an itinerary actually useful.
 `.trim();

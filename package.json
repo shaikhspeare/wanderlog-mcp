@@ -1,11 +1,35 @@
 {
-  "name": "wanderdog",
-  "version": "0.0.1",
-  "private": true,
+  "name": "wanderlog-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Wanderlog — let Claude build and edit your trip itineraries through conversation",
   "type": "module",
   "bin": {
-    "wanderdog": "./dist/index.js"
+    "wanderlog-mcp": "./dist/index.js"
   },
+  "files": [
+    "dist/",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "mcp",
+    "wanderlog",
+    "travel",
+    "itinerary",
+    "claude",
+    "llm",
+    "ai-agent"
+  ],
+  "author": "shaikhspeare",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shaikhspeare/wanderlog-mcp.git"
+  },
+  "homepage": "https://github.com/shaikhspeare/wanderlog-mcp#readme",
   "scripts": {
     "build": "tsc",
     "dev": "tsx --env-file=.env src/index.ts",

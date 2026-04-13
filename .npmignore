@@ -1,0 +1,24 @@
+# Source (dist/ is what gets published)
+src/
+tests/
+evals/
+
+# Config / tooling
+tsconfig.json
+vitest.config.ts
+probe.mjs
+CLAUDE.md
+.env
+.env.*
+.env.example
+
+# Docs (keep README, drop the rest)
+docs/
+
+# HAR captures
+*.har
+
+# Misc
+node_modules/
+*.log
+.DS_Store

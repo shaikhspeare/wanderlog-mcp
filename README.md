@@ -1,89 +1,70 @@
-# Wanderdog
+# wanderlog-mcp
 
-An MCP server that lets LLM agents view and edit [Wanderlog](https://wanderlog.com) trips through natural language. Instead of clicking around the Wanderlog UI to add a restaurant to day 2, you tell an agent *"add a sushi place to day 2 of my Tokyo trip"* and it happens.
+An MCP server that lets Claude (or any MCP-compatible agent) view and build [Wanderlog](https://wanderlog.com) trip itineraries through conversation.
 
-**Status:** Phases 0–2 complete, Phase 3 in progress. **170/170 tests passing** (142 unit + 28 integration). Nine tools working end-to-end against the live Wanderlog API, plus verified parallel-write safety on live trips. See [`docs/kanban.md`](docs/kanban.md) for the roadmap.
+Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
 
-## What you can do with it
+> *"Create a 7-day itinerary for Lisbon starting June 1 — include restaurants, day trips, and a hotel near the waterfront."*
 
-**Read**
-- `wanderlog_list_trips` — list trips in your account
-- `wanderlog_get_trip` — view a full itinerary, or filter to a single day
-- `wanderlog_get_trip_url` — get a sharable wanderlog.com link (edit / view / suggest modes)
-- `wanderlog_search_places` — find real-world places near a trip's destination
+The agent calls the tools, interleaves places and notes for each day, adds a hotel block and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
 
-**Write**
-- `wanderlog_create_trip` — create a new trip with destination + date range
-- `wanderlog_add_place` — add a place to the trip (specific day or general list)
-- `wanderlog_add_hotel` — add a hotel booking with check-in and check-out dates
-- `wanderlog_remove_place` — remove a place by natural-language reference
-- `wanderlog_update_trip_dates` — change a trip's date range (safely handles day section add/remove and preserves content on surviving days)
+## Tools
+
+| Tool | What it does |
+|---|---|
+| `wanderlog_list_trips` | List trips in your account |
+| `wanderlog_get_trip` | View a full itinerary, or filter to a single day |
+| `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
+| `wanderlog_search_places` | Find real-world places near a trip's destination |
+| `wanderlog_create_trip` | Create a new trip with destination + date range |
+| `wanderlog_add_place` | Add a place to a specific day or general list |
+| `wanderlog_add_note` | Add a note (transit tips, booking info, local advice) |
+| `wanderlog_add_hotel` | Add a hotel booking with check-in/check-out dates |
+| `wanderlog_add_checklist` | Add a pre-trip or per-day checklist |
+| `wanderlog_remove_place` | Remove a place by natural-language reference |
+| `wanderlog_update_trip_dates` | Change a trip's date range |
 
 ## Prerequisites
 
 - **Node.js 22 or newer**
-- **A Wanderlog account** (you'll need to log in once to capture a session cookie)
-- An MCP-compatible client: **Claude Code**, **Claude Desktop**, or anything else that supports stdio MCP servers
+- **A [Wanderlog](https://wanderlog.com) account**
+- An MCP-compatible client: **Claude Code**, **Claude Desktop**, or any stdio MCP host
 
 ## Setup
 
-### 1. Install
+### Step 1 — Get your Wanderlog session cookie
+
+Wanderlog doesn't have a public API, so wanderlog-mcp authenticates using your browser session cookie (`connect.sid`). It's valid for roughly a year and never leaves your machine.
+
+**Treat it like a password** — it grants the same access you have in the Wanderlog UI.
+
+#### Chrome / Edge
+
+1. Go to [wanderlog.com](https://wanderlog.com) and log in
+2. Press `F12` to open DevTools
+3. Click the **Application** tab
+4. In the left sidebar expand **Storage → Cookies → https://wanderlog.com**
+5. Find the row where **Name** is `connect.sid`
+6. Click the row, then double-click the **Value** cell and copy the full string — it starts with `s%3A` and is ~100 characters long
+
+#### Firefox
+
+1. Go to [wanderlog.com](https://wanderlog.com) and log in
+2. Press `F12` to open DevTools
+3. Click the **Storage** tab
+4. In the left sidebar expand **Cookies → https://wanderlog.com**
+5. Find `connect.sid` in the table, click it, and copy the **Value**
+
+> **Why can't I use `document.cookie` in the console?**
+> Wanderlog sets `connect.sid` with the `HttpOnly` flag, which deliberately blocks JavaScript from reading it (XSS protection). DevTools bypasses this restriction — that's why it works and the console doesn't.
+
+### Step 2 — Configure your MCP client
+
+#### Claude Code
 
 ```bash
-git clone https://github.com/your-org/wanderdog.git
-cd wanderdog
-npm install
-npm run build
-```
-
-### 2. Capture your Wanderlog session cookie
-
-Wanderdog authenticates with your `connect.sid` cookie — the same session your browser uses. Valid for ~1 year from when you log in. **It grants the same access you have in the Wanderlog UI, including trip creation/deletion, so treat it like a password.**
-
-> **Why a cookie and not OAuth?** Wanderlog doesn't publish a public API. Wanderdog reverse-engineers the private one their web client talks to, which uses standard cookie auth.
-
-#### Option A — DevTools (works for everyone)
-
-1. Go to [wanderlog.com](https://wanderlog.com) in your browser and **log in**
-2. Open DevTools:
-   - **Chrome / Edge:** `F12` or right-click → Inspect
-   - **Firefox:** `F12` or right-click → Inspect Element
-   - **Safari:** Enable "Show Develop menu" in Settings → Advanced first, then right-click → Inspect Element
-3. Navigate to the cookie storage view:
-   - **Chrome / Edge:** *Application* tab → sidebar *Storage → Cookies → https://wanderlog.com*
-   - **Firefox:** *Storage* tab → sidebar *Cookies → https://wanderlog.com*
-   - **Safari:** *Storage* tab → *Cookies → wanderlog.com*
-4. In the table, find the row where **Name** is `connect.sid`
-5. Double-click the **Value** column and copy the entire string — it starts with `s%3A` and is quite long (~100 characters)
-
-#### Option B — Bookmarklet (⚠️ won't work, here's why)
-
-A tempting one-click approach is a `javascript:` bookmarklet that reads `document.cookie`. **This doesn't work** because Wanderlog sets `connect.sid` with the `HttpOnly` flag, which deliberately hides the cookie from JavaScript as an XSS protection. DevTools is the only browser-native way to read it.
-
-You can verify this yourself by pasting the following into the browser console while on wanderlog.com:
-
-```js
-document.cookie.split('; ').find(c => c.startsWith('connect.sid'))
-```
-
-If the result is `undefined`, `HttpOnly` is on and Option A is the way.
-
-### 3. Configure Wanderdog with the cookie
-
-Pick one of:
-
-#### Local development (`.env` file)
-
-```bash
-cp .env.example .env
-# Edit .env and paste the cookie value after WANDERLOG_COOKIE=
-```
-
-#### Claude Code CLI
-
-```bash
-claude mcp add wanderdog node /absolute/path/to/wanderdog/dist/index.js \
-  --env WANDERLOG_COOKIE="s%3A...paste your value..."
+claude mcp add wanderlog-mcp npx wanderlog-mcp \
+  --env WANDERLOG_COOKIE="s%3A...your value here..."
 ```
 
 #### Claude Desktop
@@ -94,16 +75,14 @@ Edit `claude_desktop_config.json`:
 - **Windows:** `%APPDATA%\Claude\claude_desktop_config.json`
 - **Linux:** `~/.config/Claude/claude_desktop_config.json`
 
-Add to the `mcpServers` section:
-
 ```json
 {
   "mcpServers": {
-    "wanderdog": {
-      "command": "node",
-      "args": ["/absolute/path/to/wanderdog/dist/index.js"],
+    "wanderlog": {
+      "command": "npx",
+      "args": ["wanderlog-mcp"],
       "env": {
-        "WANDERLOG_COOKIE": "s%3A...paste your value..."
+        "WANDERLOG_COOKIE": "s%3A...your value here..."
       }
     }
   }
@@ -112,61 +91,46 @@ Add to the `mcpServers` section:
 
 Restart Claude Desktop after saving.
 
-### 4. Verify it's working
+### Step 3 — Verify
 
-With `.env` configured, run the live integration tests — they hit the real Wanderlog API using your cookie and will fail loudly if it's wrong or expired:
+Ask your agent: *"What trips do I have in Wanderlog?"*
 
-```bash
-npm run test:integration
-```
-
-You should see `[test] authenticated as <your-username> (<your-id>)` and all 24 tests passing.
-
-Or, in your MCP client, ask: *"What trips do I have in Wanderlog?"* — it should call `wanderlog_list_trips` and return your trip list.
+It should call `wanderlog_list_trips` and return your account's trips. If it fails, see [Troubleshooting](#troubleshooting) below.
 
 ## Refreshing your cookie
 
-The cookie lasts about a year, but it can die sooner if:
-- You log out of wanderlog.com (invalidates all sessions)
-- You change your password
-- Wanderlog revokes the session server-side
+The cookie lasts about a year but can die sooner if you log out of wanderlog.com, change your password, or Wanderlog revokes the session. When that happens every tool call returns:
 
-When that happens, every tool call returns:
-> **Wanderlog session invalid or expired** — Capture a fresh connect.sid cookie from wanderlog.com DevTools (Application → Cookies) and update WANDERLOG_COOKIE in your MCP config.
+> **Wanderlog session invalid or expired** — Capture a fresh connect.sid cookie from wanderlog.com DevTools and update WANDERLOG_COOKIE in your MCP config.
 
-Repeat step 2 above, update your `.env` or MCP config, and restart the MCP client.
+Repeat Step 1 above, update your config, and restart your MCP client.
 
-## Security notes
+## Troubleshooting
 
-- The cookie is stored **only** in your `.env` file (gitignored) or your MCP client's config. It is never committed, logged, or sent anywhere except to wanderlog.com itself.
-- Wanderdog runs locally on your machine. There's no server to send your credential to.
-- The auth probe at startup validates the cookie without printing its value.
-- If you ever suspect compromise: log out of wanderlog.com (invalidates the cookie everywhere), then re-capture.
+**Server starts but list_trips returns an auth error**
+Your cookie is expired or wrong. Re-capture it from DevTools and update your config.
 
-## Scripts
+**`npx wanderlog-mcp` hangs or does nothing**
+The server speaks stdio MCP — it's designed to be launched by an MCP host, not run directly in a terminal. Run it through Claude Code or Claude Desktop as described above.
 
-| Command | What it does |
-|---|---|
-| `npm run build` | Compile TypeScript → `dist/` |
-| `npm run dev` | Run server directly from source with tsx (development) |
-| `npm run test` | Unit tests only (no network, fast) |
-| `npm run test:integration` | Integration tests against the live Wanderlog API (requires `.env`) |
-| `npm run test:all` | Both |
-| `npm run typecheck` | `tsc --noEmit` |
-| `npm run probe` | Standalone ShareDB WebSocket probe (Phase 0 diagnostic) |
+**Tools work but the agent ignores notes/checklists**
+The server injects instructions into the MCP `initialize` response that tell the agent to interleave places and notes and add checklists. This works reliably with Claude. Other clients may vary.
 
-## Docs
+## Security
 
-For contributors and agents picking up the project:
-
-- [`docs/north-star.md`](docs/north-star.md) — problem statement, goals, non-goals, success criteria
-- [`docs/kanban.md`](docs/kanban.md) — task status by phase, roadmap, eval prompts
-- [`docs/architecture.md`](docs/architecture.md) — file layout, runtime flow, key invariants
-- [`docs/api-reference.md`](docs/api-reference.md) — reverse-engineered Wanderlog REST + WebSocket + ShareDB protocol
-- [`docs/gotchas.md`](docs/gotchas.md) — landmines we've hit; read before assuming things are simple
-
-If you're an LLM agent continuing this project, start with [`CLAUDE.md`](CLAUDE.md) at the repo root — it has the persistent instructions you'll need.
+- The cookie is stored only in your MCP client config, never committed or logged
+- wanderlog-mcp runs entirely on your machine — there's no relay server
+- The startup auth probe validates your cookie without printing its value
+- To revoke access: log out of wanderlog.com (invalidates all sessions), then re-capture
 
 ## Disclaimer
 
-Wanderdog is an unofficial third-party tool. It is not affiliated with, endorsed by, or supported by Wanderlog. It works by calling Wanderlog's private web-client API, which may change without notice. Use at your own risk, and please don't abuse Wanderlog's servers.
+wanderlog-mcp is an unofficial third-party tool, not affiliated with or endorsed by Wanderlog. It works by calling Wanderlog's private web-client API, which may change without notice. Use at your own risk.
+
+## License
+
+MIT — see [LICENSE](LICENSE)
+
+---
+
+Made by [shaikhspeare](https://github.com/shaikhspeare)
