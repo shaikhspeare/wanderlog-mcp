@@ -4,9 +4,11 @@ An MCP server that lets Claude (or any MCP-compatible agent) view and build [Wan
 
 Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
 
-> *"Create a 7-day itinerary for Lisbon starting June 1 — include restaurants, day trips, and a hotel near the waterfront."*
+> *"Create a 14-day Japan Golden Route trip — Tokyo, Hakone, Kyoto, Nara, and Osaka."*
 
-The agent calls the tools, interleaves places and notes for each day, adds a hotel block and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
+The agent calls the tools, interleaves places and notes for each day, adds hotel blocks and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
+
+**See a real example:** [14-day Japan Golden Route](https://wanderlog.com/plan/dmvegdhqsa) — built entirely by an AI agent using this MCP server.
 
 ## Tools
 
