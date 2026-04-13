@@ -13,7 +13,7 @@ Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
 
 The agent calls the tools, interleaves places and notes for each day, adds hotel blocks and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
 
-**See a real example:** [14-day Japan Golden Route](https://wanderlog.com/plan/dmvegdhqsa) — built entirely by an AI agent using this MCP server.
+**See a real example:** [14-day Japan Golden Route](https://wanderlog.com/view/dmvegdhqsa/japan-golden-route--tokyo--hakone--kyoto--nara--osaka) — built entirely by an AI agent using this MCP server.
 
 ## What's New in v0.1.0
 
