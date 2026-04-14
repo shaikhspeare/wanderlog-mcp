@@ -22,7 +22,20 @@ export const addExpenseInputSchema = {
     .default("USD")
     .describe("ISO 4217 currency code (e.g. 'USD', 'JPY', 'EUR'). Defaults to USD."),
   category: z
-    .enum(["food", "transport", "accommodation", "activities", "shopping", "other"])
+    .enum([
+      "food",
+      "drinks",
+      "groceries",
+      "publicTransit",
+      "carRental",
+      "gas",
+      "flights",
+      "lodging",
+      "sightseeing",
+      "activities",
+      "shopping",
+      "other",
+    ])
     .default("other")
     .describe("Expense category."),
   description: z
