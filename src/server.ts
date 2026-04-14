@@ -6,6 +6,16 @@ import {
   addChecklistInputSchema,
 } from "./tools/add-checklist.js";
 import {
+  addExpense,
+  addExpenseDescription,
+  addExpenseInputSchema,
+} from "./tools/add-expense.js";
+import {
+  annotatePlace,
+  annotatePlaceDescription,
+  annotatePlaceInputSchema,
+} from "./tools/annotate-place.js";
+import {
   addHotel,
   addHotelDescription,
   addHotelInputSchema,
@@ -56,33 +66,54 @@ import {
   updateTripDatesInputSchema,
 } from "./tools/update-trip-dates.js";
 
+const AUTH_ERROR_RESPONSE = {
+  content: [
+    {
+      type: "text" as const,
+      text: "Authentication required. Update WANDERLOG_COOKIE with a valid connect.sid cookie from wanderlog.com and restart the server.",
+    },
+  ],
+  isError: true,
+};
+
+function requireAuth(
+  ctx: AppContext,
+  handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>,
+) {
+  return async (args: Record<string, unknown>) => {
+    if (!ctx.authenticated) return AUTH_ERROR_RESPONSE;
+    return handler(args);
+  };
+}
+
 const SERVER_INSTRUCTIONS = `
 You are connected to Wanderdog, an MCP server for building Wanderlog trip itineraries.
 
 When a user asks you to create an itinerary or plan a trip, build it in full — not just a list
-of places. A complete itinerary uses all four building blocks on every day:
+of places. A complete itinerary uses these building blocks:
 
-  1. wanderlog_add_place — 3-5 places per day (attractions, restaurants, activities)
-  2. wanderlog_add_note — after EACH place, add a note with practical context: how to get
-     there from the previous stop, what to order or see, whether advance booking is required,
-     opening hours, and local tips. Every day should have notes between places.
+  1. wanderlog_add_place — 3-5 places per day (attractions, restaurants, activities).
+     ALWAYS use the "note" parameter to attach practical context directly to the place: how to
+     get there, what to order, booking tips, opening hours. ALWAYS use "start_time" and
+     "end_time" to schedule each place (e.g. start_time: "09:00", end_time: "10:30").
+     This is one tool call instead of two — faster and the note lives on the place itself.
+  2. wanderlog_add_note — use ONLY for freestanding commentary between places: neighborhood
+     context, multi-stop transit directions, or day-level tips not about a specific place.
+     Do NOT use add_note for per-place context — use the "note" param on add_place instead.
   3. wanderlog_add_hotel — one hotel block covering the full stay
   4. wanderlog_add_checklist — at least one pre-trip checklist (visa, currency, offline maps,
      return ticket, travel insurance) and per-day checklists for days that need advance prep
-     (timed-entry tickets, free-but-must-book venues, etc.)
+  5. wanderlog_add_expense — add estimated costs for meals, entrance fees, transport passes.
+     Link each expense to its place for budget tracking.
+  6. wanderlog_annotate_place — update an existing place with a note, start/end time, or both.
 
-IMPORTANT — interleave places and notes. For each day, follow this exact pattern:
-  wanderlog_add_place (place 1)
-  wanderlog_add_note (tips/transit for place 1)
-  wanderlog_add_place (place 2)
-  wanderlog_add_note (tips/transit for place 2)
-  ... and so on.
+Example add_place call with all features:
+  wanderlog_add_place(trip_key, place: "Sensō-ji", day: "day 1",
+    note: "Arrive before 9am to avoid crowds. Free entry. The Nakamise shopping street
+    leading to the temple is great for souvenirs and snacks.",
+    start_time: "08:30", end_time: "10:00")
 
-Do NOT batch all places first and then add notes — that puts all notes at the bottom of the
-day instead of between the places where they belong. The order matters because blocks appear
-in the itinerary in the order they are added.
-
-Places without notes are pins on a map. Notes are what make an itinerary actually useful.
+Places without notes and times are just pins on a map. Rich places make an itinerary useful.
 `.trim();
 
 export function buildServer(ctx: AppContext): McpServer {
@@ -98,7 +129,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: listTripsDescription,
       inputSchema: listTripsInputSchema,
     },
-    async (args) => listTrips(ctx, args as Parameters<typeof listTrips>[1]),
+    requireAuth(ctx, async (args) => listTrips(ctx, args as Parameters<typeof listTrips>[1])),
   );
 
   server.registerTool(
@@ -108,7 +139,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: getTripDescription,
       inputSchema: getTripInputSchema,
     },
-    async (args) => getTrip(ctx, args as Parameters<typeof getTrip>[1]),
+    requireAuth(ctx, async (args) => getTrip(ctx, args as Parameters<typeof getTrip>[1])),
   );
 
   server.registerTool(
@@ -118,7 +149,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: getTripUrlDescription,
       inputSchema: getTripUrlInputSchema,
     },
-    async (args) => getTripUrl(ctx, args as Parameters<typeof getTripUrl>[1]),
+    requireAuth(ctx, async (args) => getTripUrl(ctx, args as Parameters<typeof getTripUrl>[1])),
   );
 
   server.registerTool(
@@ -128,7 +159,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: searchPlacesDescription,
       inputSchema: searchPlacesInputSchema,
     },
-    async (args) => searchPlaces(ctx, args as Parameters<typeof searchPlaces>[1]),
+    requireAuth(ctx, async (args) => searchPlaces(ctx, args as Parameters<typeof searchPlaces>[1])),
   );
 
   server.registerTool(
@@ -138,7 +169,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: createTripDescription,
       inputSchema: createTripInputSchema,
     },
-    async (args) => createTrip(ctx, args as Parameters<typeof createTrip>[1]),
+    requireAuth(ctx, async (args) => createTrip(ctx, args as Parameters<typeof createTrip>[1])),
   );
 
   server.registerTool(
@@ -148,7 +179,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: addPlaceDescription,
       inputSchema: addPlaceInputSchema,
     },
-    async (args) => addPlace(ctx, args as Parameters<typeof addPlace>[1]),
+    requireAuth(ctx, async (args) => addPlace(ctx, args as Parameters<typeof addPlace>[1])),
   );
 
   server.registerTool(
@@ -158,7 +189,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: addHotelDescription,
       inputSchema: addHotelInputSchema,
     },
-    async (args) => addHotel(ctx, args as Parameters<typeof addHotel>[1]),
+    requireAuth(ctx, async (args) => addHotel(ctx, args as Parameters<typeof addHotel>[1])),
   );
 
   server.registerTool(
@@ -168,7 +199,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: addNoteDescription,
       inputSchema: addNoteInputSchema,
     },
-    async (args) => addNote(ctx, args as Parameters<typeof addNote>[1]),
+    requireAuth(ctx, async (args) => addNote(ctx, args as Parameters<typeof addNote>[1])),
   );
 
   server.registerTool(
@@ -178,7 +209,29 @@ export function buildServer(ctx: AppContext): McpServer {
       description: addChecklistDescription,
       inputSchema: addChecklistInputSchema,
     },
-    async (args) => addChecklist(ctx, args as Parameters<typeof addChecklist>[1]),
+    requireAuth(ctx, async (args) => addChecklist(ctx, args as Parameters<typeof addChecklist>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_annotate_place",
+    {
+      title: "Update a place with notes, times, or both",
+      description: annotatePlaceDescription,
+      inputSchema: annotatePlaceInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      annotatePlace(ctx, args as Parameters<typeof annotatePlace>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_add_expense",
+    {
+      title: "Add a budget expense to a Wanderlog trip",
+      description: addExpenseDescription,
+      inputSchema: addExpenseInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      addExpense(ctx, args as Parameters<typeof addExpense>[1])),
   );
 
   server.registerTool(
@@ -188,7 +241,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: removePlaceDescription,
       inputSchema: removePlaceInputSchema,
     },
-    async (args) => removePlace(ctx, args as Parameters<typeof removePlace>[1]),
+    requireAuth(ctx, async (args) => removePlace(ctx, args as Parameters<typeof removePlace>[1])),
   );
 
   server.registerTool(
@@ -198,8 +251,8 @@ export function buildServer(ctx: AppContext): McpServer {
       description: updateTripDatesDescription,
       inputSchema: updateTripDatesInputSchema,
     },
-    async (args) =>
-      updateTripDates(ctx, args as Parameters<typeof updateTripDates>[1]),
+    requireAuth(ctx, async (args) =>
+      updateTripDates(ctx, args as Parameters<typeof updateTripDates>[1])),
   );
 
   return server;

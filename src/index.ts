@@ -20,6 +20,7 @@ async function main() {
   try {
     const user = await ctx.rest.getUser();
     ctx.userId = user.id;
+    ctx.authenticated = true;
     process.stderr.write(
       `[wanderdog] authenticated as ${user.username} (${user.id})\n`,
     );
@@ -28,8 +29,10 @@ async function main() {
       err instanceof WanderlogError
         ? err.toUserMessage()
         : (err as Error).message;
-    process.stderr.write(`[wanderdog] auth probe failed: ${msg}\n`);
-    process.exit(1);
+    process.stderr.write(
+      `[wanderdog] auth probe failed: ${msg}\n` +
+        `[wanderdog] server will start but all tools will require valid credentials\n`,
+    );
   }
 
   const server = buildServer(ctx);

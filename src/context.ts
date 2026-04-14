@@ -10,6 +10,8 @@ export type AppContext = {
   tripCache: TripCache;
   /** Populated by the startup auth probe. Used by mutation tools for `addedBy`. */
   userId?: number;
+  /** True when the auth probe succeeded. Tools should check this before making requests. */
+  authenticated: boolean;
 };
 
 export function createContext(): AppContext {
@@ -17,5 +19,5 @@ export function createContext(): AppContext {
   const rest = new RestClient(config);
   const pool = new ShareDBPool(config);
   const tripCache = new TripCache(rest, pool);
-  return { config, rest, pool, tripCache };
+  return { config, rest, pool, tripCache, authenticated: false };
 }
