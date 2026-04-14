@@ -177,12 +177,18 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
     ? `${formatTime(block.startTime)}${block.endTime ? `–${formatTime(block.endTime)}` : ""} `
     : "";
 
+  const inlineNote = quillToPlain(block.text).replace(/\s+/g, " ").trim();
+  const hasNote = inlineNote.length > 0;
+
   if (format === "concise") {
     const rating = p.rating ? ` ★${p.rating}` : "";
     const hotel = block.hotel?.checkIn
       ? ` (check-in ${block.hotel.checkIn}, out ${block.hotel.checkOut})`
       : "";
-    return `${time}${p.name}${rating}${hotel}`;
+    const note = hasNote
+      ? `\n    📝 ${inlineNote.length > 120 ? `${inlineNote.slice(0, 117)}…` : inlineNote}`
+      : "";
+    return `${time}${p.name}${rating}${hotel}${note}`;
   }
 
   const parts = [`${time}${p.name}`];
@@ -194,6 +200,10 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
     parts.push(`check-in ${block.hotel.checkIn} → check-out ${block.hotel.checkOut}`);
   if (block.hotel?.confirmationNumber)
     parts.push(`conf. ${block.hotel.confirmationNumber}`);
+  if (hasNote) {
+    const truncated = inlineNote.length > 200 ? `${inlineNote.slice(0, 197)}…` : inlineNote;
+    parts.push(`📝 ${truncated}`);
+  }
   return parts.join(" · ");
 }
 

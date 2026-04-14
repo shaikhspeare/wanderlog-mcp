@@ -4,7 +4,7 @@
   "description": "MCP server for Wanderlog — let Claude build and edit your trip itineraries through conversation",
   "type": "module",
   "bin": {
-    "wanderlog-mcp": "./dist/index.js"
+    "wanderlog-mcp": "dist/index.js"
   },
   "files": [
     "dist/",
@@ -39,7 +39,8 @@
     "test:integration": "node --env-file=.env ./node_modules/vitest/vitest.mjs run tests/integration",
     "test:all": "npm run test && npm run test:integration",
     "typecheck": "tsc --noEmit",
-    "eval": "node --env-file=.env --import tsx evals/run.ts"
+    "eval": "node --env-file=.env --import tsx evals/run.ts",
+    "start:http": "node --env-file=.env dist/http.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",

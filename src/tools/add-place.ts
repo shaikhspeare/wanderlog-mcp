@@ -30,25 +30,46 @@ export const addPlaceInputSchema = {
     .describe(
       "Optional day to add the place to. Accepts 'day 2', 'May 4', or ISO '2026-05-04'. Omit to add the place to the trip's 'Places to visit' list (unscheduled).",
     ),
+  note: z
+    .string()
+    .optional()
+    .describe(
+      "Optional inline note attached directly to this place. Use for practical context: transit directions, what to order, booking tips, time guidance. Appears on the place itself in Wanderlog (not as a separate note block).",
+    ),
+  start_time: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "must be HH:mm")
+    .optional()
+    .describe("Optional start time in HH:mm format (e.g. '09:00'). Adds a scheduled time to the place."),
+  end_time: z
+    .string()
+    .regex(/^\d{2}:\d{2}$/, "must be HH:mm")
+    .optional()
+    .describe("Optional end time in HH:mm format (e.g. '11:30'). Only used with start_time."),
 };
 
 export const addPlaceDescription = `
 Adds a place to a Wanderlog trip. Searches for the place near the trip's destination, picks the
 best match, and inserts it into either a specific day or the general "Places to visit" list.
 
-After adding a place, follow up with wanderlog_add_note on the same day to provide context a
-traveler needs: how to get there from the previous stop, what to order, whether to book ahead,
-or how long to budget. Places without notes are just pins on a map.
+PREFERRED: Use the "note" parameter to attach practical context directly to each place — transit
+directions, what to order, booking tips, time guidance. This is better than a separate
+wanderlog_add_note call because the note lives on the place itself in the itinerary. Use the
+"start_time" and "end_time" parameters to give the place a scheduled time window.
 
-Returns a confirmation including the resolved place name and where it was added. If the place
-can't be found near the trip, the tool returns an actionable error suggesting a more specific
-query.
+Use standalone wanderlog_add_note only for freestanding commentary between places (neighborhood
+context, multi-stop transit, day-level tips that aren't about a specific place).
+
+Returns a confirmation including the resolved place name and where it was added.
 `.trim();
 
 type Args = {
   trip_key: string;
   place: string;
   day?: string;
+  note?: string;
+  start_time?: string;
+  end_time?: string;
 };
 
 export async function addPlace(
@@ -116,19 +137,60 @@ export async function addPlace(
     const detail: PlaceData = await ctx.rest.getPlaceDetails(topPrediction.place_id);
 
     // Build the block and the op
-    const block = buildPlaceBlock(detail, userId);
+    const block = buildPlaceBlock(detail, userId, {
+      startTime: args.start_time,
+      endTime: args.end_time,
+    });
     const section = trip.itinerary.sections[targetIndex]!;
     const insertIndex = section.blocks.length;
+    const blockPath = ["itinerary", "sections", targetIndex, "blocks", insertIndex];
     const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "sections", targetIndex, "blocks", insertIndex],
-        li: block,
-      },
+      { p: blockPath, li: block },
     ];
 
     await submitOp(ctx, args.trip_key, ops);
 
-    const text = `Added ${detail.name} to ${targetLabel} in "${trip.title}".`;
+    // Follow-up: set inline note text via rich-text subtype op
+    if (args.note) {
+      const textOps: Json0Op[] = [
+        {
+          p: [...blockPath, "text"],
+          t: "rich-text",
+          o: [{ insert: `${args.note}\n` }],
+        },
+      ];
+      await submitOp(ctx, args.trip_key, textOps);
+    }
+
+    // Follow-up: set timing via od/oi ops
+    if (args.start_time || args.end_time) {
+      const timeOps: Json0Op[] = [];
+      if (args.start_time) {
+        timeOps.push({
+          p: [...blockPath, "startTime"],
+          od: null,
+          oi: args.start_time,
+        });
+      }
+      if (args.end_time) {
+        timeOps.push({
+          p: [...blockPath, "endTime"],
+          od: null,
+          oi: args.end_time,
+        });
+      }
+      await submitOp(ctx, args.trip_key, timeOps);
+    }
+
+    const parts = [`Added ${detail.name} to ${targetLabel} in "${trip.title}".`];
+    if (args.start_time) {
+      parts.push(`Scheduled: ${args.start_time}${args.end_time ? `–${args.end_time}` : ""}.`);
+    }
+    if (args.note) {
+      const preview = args.note.length > 60 ? `${args.note.slice(0, 57)}…` : args.note;
+      parts.push(`Note: "${preview}"`);
+    }
+    const text = parts.join(" ");
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =
