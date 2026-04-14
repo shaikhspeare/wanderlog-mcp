@@ -105,23 +105,19 @@ export async function annotatePlace(
       await submitOp(ctx, args.trip_key, textOps);
     }
 
-    // Set timing via od/oi ops
+    // Set timing — use od+oi when the field already exists, plain oi when it doesn't
     if (args.start_time || args.end_time) {
       const timeOps: Json0Op[] = [];
       const existingBlock = block as Record<string, unknown>;
       if (args.start_time) {
-        timeOps.push({
-          p: [...blockPath, "startTime"],
-          od: (existingBlock.startTime as string | null) ?? null,
-          oi: args.start_time,
-        });
+        const op: Json0Op = { p: [...blockPath, "startTime"], oi: args.start_time };
+        if ("startTime" in existingBlock) op.od = existingBlock.startTime as string | null;
+        timeOps.push(op);
       }
       if (args.end_time) {
-        timeOps.push({
-          p: [...blockPath, "endTime"],
-          od: (existingBlock.endTime as string | null) ?? null,
-          oi: args.end_time,
-        });
+        const op: Json0Op = { p: [...blockPath, "endTime"], oi: args.end_time };
+        if ("endTime" in existingBlock) op.od = existingBlock.endTime as string | null;
+        timeOps.push(op);
       }
       await submitOp(ctx, args.trip_key, timeOps);
     }

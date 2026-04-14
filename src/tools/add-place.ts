@@ -136,11 +136,9 @@ export async function addPlace(
     const topPrediction = predictions[0]!;
     const detail: PlaceData = await ctx.rest.getPlaceDetails(topPrediction.place_id);
 
-    // Build the block and the op
-    const block = buildPlaceBlock(detail, userId, {
-      startTime: args.start_time,
-      endTime: args.end_time,
-    });
+    // Build the block WITHOUT timing — timing is set via separate oi ops
+    // to match the Wanderlog UI's two-step pattern (insert block, then set fields).
+    const block = buildPlaceBlock(detail, userId);
     const section = trip.itinerary.sections[targetIndex]!;
     const insertIndex = section.blocks.length;
     const blockPath = ["itinerary", "sections", targetIndex, "blocks", insertIndex];
@@ -162,20 +160,20 @@ export async function addPlace(
       await submitOp(ctx, args.trip_key, textOps);
     }
 
-    // Follow-up: set timing via od/oi ops
+    // Follow-up: set timing via plain oi ops. The block was inserted without
+    // timing fields, so we use oi (object insert) without od — the key doesn't
+    // exist yet. This matches the Wanderlog UI's two-step pattern.
     if (args.start_time || args.end_time) {
       const timeOps: Json0Op[] = [];
       if (args.start_time) {
         timeOps.push({
           p: [...blockPath, "startTime"],
-          od: null,
           oi: args.start_time,
         });
       }
       if (args.end_time) {
         timeOps.push({
           p: [...blockPath, "endTime"],
-          od: null,
           oi: args.end_time,
         });
       }
