@@ -65,6 +65,11 @@ import {
   updateTripDatesDescription,
   updateTripDatesInputSchema,
 } from "./tools/update-trip-dates.js";
+import {
+  renameDay,
+  renameDayDescription,
+  renameDayInputSchema,
+} from "./tools/rename-day.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -253,6 +258,17 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       updateTripDates(ctx, args as Parameters<typeof updateTripDates>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_rename_day",
+    {
+      title: "Rename a day heading in a Wanderlog trip",
+      description: renameDayDescription,
+      inputSchema: renameDayInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      renameDay(ctx, args as Parameters<typeof renameDay>[1])),
   );
 
   return server;
