@@ -15,6 +15,11 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 **See a real example:** [14-day Japan Golden Route](https://wanderlog.com/view/dmvegdhqsa/japan-golden-route--tokyo--hakone--kyoto--nara--osaka) — built entirely by an AI agent using this MCP server.
 
+## What's New in v0.2.0
+
+- `wanderlog_rename_day` — replace auto-generated day headings (e.g. `"Barcelona"`) with descriptive ones (`"Arrival — Feria de Abril"`). Pass `""` to reset back to the default.
+- Tools table now documents `wanderlog_annotate_place` and `wanderlog_add_expense` (shipped previously, missing from v0.1.0 docs).
+
 ## What's New in v0.1.0
 
 - Full itinerary building: places, notes, hotels, and checklists in a single conversation
@@ -69,8 +74,11 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_note` | Add a note (transit tips, booking info, local advice) |
 | `wanderlog_add_hotel` | Add a hotel booking with check-in/check-out dates |
 | `wanderlog_add_checklist` | Add a pre-trip or per-day checklist |
+| `wanderlog_add_expense` | Log a budget expense (amount, category, currency) linked to a place |
+| `wanderlog_annotate_place` | Update an existing place with a note, start/end time, or both |
 | `wanderlog_remove_place` | Remove a place by natural-language reference |
 | `wanderlog_update_trip_dates` | Change a trip's date range |
+| `wanderlog_rename_day` | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`) |
 
 ## Prerequisites
 
