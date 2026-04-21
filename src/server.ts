@@ -123,7 +123,7 @@ Places without notes and times are just pins on a map. Rich places make an itine
 
 export function buildServer(ctx: AppContext): McpServer {
   const server = new McpServer(
-    { name: "wanderdog", version: "0.2.0" },
+    { name: "wanderlog-mcp", version: "0.2.0" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
