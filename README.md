@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/shaikhspeare-wanderlog-mcp-badge.png)](https://mseep.ai/app/shaikhspeare-wanderlog-mcp)
+
 # wanderlog-mcp
 
 [![npm](https://img.shields.io/npm/v/wanderlog-mcp)](https://www.npmjs.com/package/wanderlog-mcp)
