@@ -4,13 +4,13 @@ import type {
   FlightBlock,
   NoteBlock,
   PlaceBlock,
-  QuillDelta,
   Section,
   TrainBlock,
   TripPlan,
   TripPlanSummary,
   UnknownBlock,
 } from "../types.js";
+import { quillToPlain } from "../types.js";
 
 export type ResponseFormat = "concise" | "detailed";
 
@@ -301,14 +301,6 @@ function formatTime(iso: string): string {
   // ISO times like "2025-11-13T09:00:00Z" or "09:00" — keep it tolerant.
   const match = /(\d{2}:\d{2})/.exec(iso);
   return match ? match[1]! : iso;
-}
-
-/** Extract plain text from a Quill Delta `{ops: [{insert: "..."}]}`. */
-function quillToPlain(delta: QuillDelta | undefined): string {
-  if (!delta?.ops) return "";
-  return delta.ops
-    .map((op) => (typeof op.insert === "string" ? op.insert : ""))
-    .join("");
 }
 
 function formatDayLabel(section: Section): string {

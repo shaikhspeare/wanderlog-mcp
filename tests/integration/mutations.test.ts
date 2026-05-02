@@ -3,9 +3,11 @@ import { createContext, type AppContext } from "../../src/context.ts";
 import { addChecklist } from "../../src/tools/add-checklist.ts";
 import { addHotel } from "../../src/tools/add-hotel.ts";
 import { addNote } from "../../src/tools/add-note.ts";
+import { editNote } from "../../src/tools/edit-note.ts";
 import { addPlace } from "../../src/tools/add-place.ts";
 import { createTrip } from "../../src/tools/create-trip.ts";
 import { getTrip } from "../../src/tools/get-trip.ts";
+import { removeNote } from "../../src/tools/remove-note.ts";
 import { removePlace } from "../../src/tools/remove-place.ts";
 import { updateTripDates } from "../../src/tools/update-trip-dates.ts";
 import { isChecklistBlock, isPlaceBlock } from "../../src/types.ts";
@@ -154,6 +156,57 @@ describe("Mutation tools (live round-trip)", () => {
     expect(result.content[0]!.text).toContain("places to visit");
   }, 30_000);
 
+  it("edit_note replaces the 'General trip reminder' text in place", async () => {
+    expect(tripKey).toBeDefined();
+    const newText = "General trip reminder — updated via edit_note";
+    const result = await editNote(ctx, {
+      trip_key: tripKey!,
+      note_ref: "general trip reminder",
+      text: newText,
+    });
+    if (result.isError) {
+      throw new Error(`edit_note failed: ${result.content[0]!.text}`);
+    }
+    expect(result.content[0]!.text.toLowerCase()).toContain("updated");
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const updated = trip.itinerary.sections
+      .flatMap((s) => s.blocks)
+      .find(
+        (b) =>
+          b.type === "note" &&
+          ((b as NoteBlock).text?.ops ?? []).some(
+            (op) => typeof op.insert === "string" && op.insert.includes("updated via edit_note"),
+          ),
+      );
+    expect(updated).toBeDefined();
+
+    const stale = trip.itinerary.sections
+      .flatMap((s) => s.blocks)
+      .some(
+        (b) =>
+          b.type === "note" &&
+          ((b as NoteBlock).text?.ops ?? []).some(
+            (op) => typeof op.insert === "string" && op.insert.trim() === "General trip reminder",
+          ),
+      );
+    expect(stale).toBe(false);
+  }, 30_000);
+
+  it("edit_note returns ambiguous candidates without mutating when ref matches multiple", async () => {
+    expect(tripKey).toBeDefined();
+    // Day 1 has the "sunscreen" note; the placeList has the now-updated reminder.
+    // Both contain the substring "trip" in some form? Use role keyword on placeList instead:
+    // we expect "note" alone to be ambiguous since at least 2 notes exist on the trip.
+    const result = await editNote(ctx, {
+      trip_key: tripKey!,
+      note_ref: "note",
+      text: "should not be applied",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text.toLowerCase()).toMatch(/matches \d+ notes/);
+  }, 20_000);
+
   it("add_checklist adds a checklist with title and items to day 2", async () => {
     expect(tripKey).toBeDefined();
     const result = await addChecklist(ctx, {
@@ -204,6 +257,62 @@ describe("Mutation tools (live round-trip)", () => {
     const result = await removePlace(ctx, {
       trip_key: tripKey!,
       place_ref: "definitely not a real place xyzzy",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text.toLowerCase()).toMatch(/not found/);
+  });
+
+  it("remove_note removes the sunscreen note by substring", async () => {
+    expect(tripKey).toBeDefined();
+    const result = await removeNote(ctx, {
+      trip_key: tripKey!,
+      note_ref: "sunscreen",
+    });
+    if (result.isError) {
+      throw new Error(`remove_note failed: ${result.content[0]!.text}`);
+    }
+    expect(result.content[0]!.text.toLowerCase()).toContain("removed");
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const stillThere = trip.itinerary.sections.some((s) =>
+      s.blocks.some(
+        (b) =>
+          b.type === "note" &&
+          ((b as NoteBlock).text?.ops ?? []).some(
+            (op) => typeof op.insert === "string" && op.insert.includes("sunscreen"),
+          ),
+      ),
+    );
+    expect(stillThere).toBe(false);
+  }, 30_000);
+
+  it("remove_note 'the note' is ambiguous when multiple notes exist", async () => {
+    // At this point at least the 'General trip reminder' note remains; the
+    // test trip may also have picked up other notes from live churn. We only
+    // require that calling with "note" on a trip with >=2 notes returns an
+    // ambiguous response without mutating. Add a second note to guarantee it.
+    expect(tripKey).toBeDefined();
+    const seedResult = await addNote(ctx, {
+      trip_key: tripKey!,
+      text: "Second remover probe note",
+    });
+    if (seedResult.isError) {
+      throw new Error(`seed add_note failed: ${seedResult.content[0]!.text}`);
+    }
+
+    const result = await removeNote(ctx, {
+      trip_key: tripKey!,
+      note_ref: "note",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text.toLowerCase()).toMatch(/matches \d+ notes/);
+  }, 30_000);
+
+  it("remove_note returns not-found for an unmatched ref", async () => {
+    expect(tripKey).toBeDefined();
+    const result = await removeNote(ctx, {
+      trip_key: tripKey!,
+      note_ref: "this note text definitely does not exist xyzzy",
     });
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text.toLowerCase()).toMatch(/not found/);

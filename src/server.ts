@@ -51,6 +51,16 @@ import {
   listTripsInputSchema,
 } from "./tools/list-trips.js";
 import {
+  removeNote,
+  removeNoteDescription,
+  removeNoteInputSchema,
+} from "./tools/remove-note.js";
+import {
+  editNote,
+  editNoteDescription,
+  editNoteInputSchema,
+} from "./tools/edit-note.js";
+import {
   removePlace,
   removePlaceDescription,
   removePlaceInputSchema,
@@ -247,6 +257,26 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: removePlaceInputSchema,
     },
     requireAuth(ctx, async (args) => removePlace(ctx, args as Parameters<typeof removePlace>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_note",
+    {
+      title: "Remove a note from a Wanderlog trip",
+      description: removeNoteDescription,
+      inputSchema: removeNoteInputSchema,
+    },
+    requireAuth(ctx, async (args) => removeNote(ctx, args as Parameters<typeof removeNote>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_note",
+    {
+      title: "Edit an existing note's text in place",
+      description: editNoteDescription,
+      inputSchema: editNoteInputSchema,
+    },
+    requireAuth(ctx, async (args) => editNote(ctx, args as Parameters<typeof editNote>[1])),
   );
 
   server.registerTool(

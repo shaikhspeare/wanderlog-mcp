@@ -128,6 +128,18 @@ export function isChecklistBlock(block: Block): block is ChecklistBlock {
   return block.type === "checklist" && "items" in block;
 }
 
+export function isNoteBlock(block: Block): block is NoteBlock {
+  return block.type === "note";
+}
+
+/** Extract plain text from a Quill Delta `{ops: [{insert: "..."}]}`. */
+export function quillToPlain(delta: QuillDelta | undefined): string {
+  if (!delta?.ops) return "";
+  return delta.ops
+    .map((op) => (typeof op.insert === "string" ? op.insert : ""))
+    .join("");
+}
+
 export type SectionType =
   | "textOnly"
   | "normal"

@@ -60,6 +60,9 @@ and a ryokan in Shinjuku."
 ```
 "Remove the Colosseum from day 2 of my Rome trip."
 ```
+```
+"Update the day-1 note on my Tokyo trip to mention the Suica card refund desk at the airport."
+```
 
 ## Tools
 
@@ -77,6 +80,8 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_expense` | Log a budget expense (amount, category, currency) linked to a place |
 | `wanderlog_annotate_place` | Update an existing place with a note, start/end time, or both |
 | `wanderlog_remove_place` | Remove a place by natural-language reference |
+| `wanderlog_remove_note` | Remove a note by natural-language reference |
+| `wanderlog_edit_note` | Replace a note's text in place — preserves block position and id |
 | `wanderlog_update_trip_dates` | Change a trip's date range |
 | `wanderlog_rename_day` | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`) |
 
