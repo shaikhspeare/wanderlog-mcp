@@ -1,6 +1,11 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
-import type { GuideGeoRef } from "../types.js";
+import type {
+  GeoWithGoodGuides,
+  GuideGeoRef,
+  GuideSummary,
+  WanderlogGuide,
+} from "../types.js";
 import {
   WanderlogError,
   WanderlogValidationError,
@@ -110,6 +115,61 @@ export async function resolveGeo(
       subcategory: null,
     },
     alternative_geos: alternatives,
+  };
+}
+
+const IMAGE_BASE = "https://wanderlog.com/image/upload";
+
+let cachedGoodGuides: Promise<GeoWithGoodGuides[]> | null = null;
+
+export function __resetCacheForTests(): void {
+  cachedGoodGuides = null;
+}
+
+export function loadGoodGuides(ctx: AppContext): Promise<GeoWithGoodGuides[]> {
+  if (!cachedGoodGuides) {
+    cachedGoodGuides = ctx.rest.listGoodGuides().catch((err) => {
+      cachedGoodGuides = null;
+      throw err;
+    });
+  }
+  return cachedGoodGuides;
+}
+
+function imageUrl(key: string | null | undefined): string | null {
+  return key ? `${IMAGE_BASE}/${key}` : null;
+}
+
+export function projectGuide(
+  g: WanderlogGuide,
+  format: "concise" | "detailed",
+): GuideSummary {
+  const base: GuideSummary = {
+    guide_key: g.key,
+    title: g.title,
+    author: g.user.username,
+    place_count: g.placeCount ?? null,
+    view_count: g.viewCount ?? null,
+  };
+  if (format === "concise") return base;
+  return {
+    ...base,
+    author_name: g.user.name,
+    profile_picture_url: imageUrl(g.user.profilePictureKey),
+    blurb: g.authorBlurb ?? null,
+    like_count: g.likeCount ?? null,
+    edited_at: g.editedAt ?? null,
+    distinction: g.distinction ?? null,
+    header_image_url: imageUrl(g.headerImageKey),
+  };
+}
+
+export function geoRef(g: GeoWithGoodGuides): GuideGeoRef {
+  return {
+    geo_id: g.id,
+    name: g.name,
+    country: g.countryName ?? null,
+    subcategory: g.subcategory ?? null,
   };
 }
 
