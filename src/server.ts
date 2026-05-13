@@ -61,6 +61,11 @@ import {
   searchPlacesInputSchema,
 } from "./tools/search-places.js";
 import {
+  searchHotels,
+  searchHotelsDescription,
+  searchHotelsInputSchema,
+} from "./tools/search-hotels.js";
+import {
   updateTripDates,
   updateTripDatesDescription,
   updateTripDatesInputSchema,
@@ -175,6 +180,18 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: searchPlacesInputSchema,
     },
     requireAuth(ctx, async (args) => searchPlaces(ctx, args as Parameters<typeof searchPlaces>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_search_hotels",
+    {
+      title: "Search hotels for a destination",
+      description: searchHotelsDescription,
+      inputSchema: searchHotelsInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      searchHotels(ctx, args as Parameters<typeof searchHotels>[1]),
+    ),
   );
 
   server.registerTool(
