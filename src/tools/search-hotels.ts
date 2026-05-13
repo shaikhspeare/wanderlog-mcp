@@ -1,9 +1,11 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
 import type {
+  HotelAvailableFilters,
   HotelDeal,
   HotelGeo,
   HotelOffer,
+  HotelPriceBucket,
   LodgingOffer,
   LodgingPriceRate,
 } from "../types.js";
@@ -292,6 +294,86 @@ export function projectOffer(offer: LodgingOffer): HotelOffer {
     },
     thumbnail: offer.lodging.images?.[0]?.thumbnailUrl ?? null,
     deals,
+  };
+}
+
+function inc(map: Record<string, number>, key: string | undefined): void {
+  if (!key) return;
+  map[key] = (map[key] ?? 0) + 1;
+}
+
+function quartileBuckets(prices: number[]): HotelPriceBucket[] {
+  if (prices.length === 0) return [];
+  const sorted = [...prices].sort((a, b) => a - b);
+  const n = sorted.length;
+  const min = sorted[0]!;
+  const q1 = sorted[Math.floor(n * 0.25)] ?? min;
+  const q2 = sorted[Math.floor(n * 0.5)] ?? min;
+  const q3 = sorted[Math.floor(n * 0.75)] ?? min;
+  const ranges: Array<[number, number | null]> = [
+    [min, q1],
+    [q1, q2],
+    [q2, q3],
+    [q3, null],
+  ];
+  return ranges.map(([lo, hi], idx, all) => {
+    if (idx === all.length - 1) {
+      return {
+        min: lo,
+        max: hi,
+        count: prices.filter((p) => p >= lo).length,
+      };
+    }
+    return {
+      min: lo,
+      max: hi,
+      count: prices.filter((p) => {
+        if (hi === null) return p >= lo;
+        return p >= lo && p < hi;
+      }).length,
+    };
+  });
+}
+
+export function aggregateFacets(
+  offers: LodgingOffer[],
+): HotelAvailableFilters {
+  const hotelClasses: Record<string, number> = {};
+  const amenities: Record<string, number> = {};
+  const lodgingTypes: Record<string, number> = {};
+  const accommodationTypes: Record<string, number> = {};
+  const sources: Record<string, number> = {};
+
+  for (const offer of offers) {
+    if (typeof offer.lodging.hotelClass === "number") {
+      inc(hotelClasses, String(offer.lodging.hotelClass));
+    }
+    for (const a of offer.lodging.amenities ?? []) inc(amenities, a);
+    inc(lodgingTypes, offer.lodging.lodgingType);
+    inc(accommodationTypes, offer.lodging.accommodationType);
+
+    const rates =
+      offer.priceRates && offer.priceRates.length > 0
+        ? offer.priceRates
+        : offer.priceRate
+          ? [offer.priceRate]
+          : [];
+    const sitesInThisOffer = new Set<string>();
+    for (const r of rates) sitesInThisOffer.add(r.site);
+    for (const site of sitesInThisOffer) inc(sources, site);
+  }
+
+  const primaryPrices = offers
+    .map((o) => o.priceRates?.[0]?.amount ?? o.priceRate?.amount)
+    .filter((p): p is number => p !== undefined);
+
+  return {
+    hotel_classes: hotelClasses,
+    amenities,
+    lodging_types: lodgingTypes,
+    accommodation_types: accommodationTypes,
+    sources,
+    price_buckets: quartileBuckets(primaryPrices),
   };
 }
 

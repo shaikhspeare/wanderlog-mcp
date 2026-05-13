@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchBody, projectOffer } from "../../src/tools/search-hotels.ts";
+import {
+  aggregateFacets,
+  buildSearchBody,
+  projectOffer,
+} from "../../src/tools/search-hotels.ts";
 import type { LodgingOffer } from "../../src/types.ts";
 
 const GEO = {
@@ -172,5 +176,92 @@ describe("projectOffer", () => {
     expect(projected.rating).toBeNull();
     expect(projected.rating_count).toBeNull();
     expect(projected.thumbnail).toBeNull();
+  });
+});
+
+function offerWith(args: {
+  hotelClass?: number;
+  amenities?: string[];
+  lodgingType?: string;
+  accommodationType?: string;
+  rates: Array<{ amount: number; site: string }>;
+}): LodgingOffer {
+  return {
+    lodging: {
+      id: { type: "google", lodgingId: Math.random().toString() },
+      name: "Test",
+      location: { latitude: 0, longitude: 0 },
+      hotelClass: args.hotelClass,
+      amenities: args.amenities,
+      lodgingType: args.lodgingType,
+      accommodationType: args.accommodationType,
+    },
+    priceRates: args.rates.map((r) => ({
+      amount: r.amount,
+      currencyCode: "USD",
+      site: r.site,
+      bookingUrl: "u",
+    })),
+  };
+}
+
+describe("aggregateFacets", () => {
+  it("counts hotel_classes, amenities, lodging_types, accommodation_types, sources", () => {
+    const offers: LodgingOffer[] = [
+      offerWith({
+        hotelClass: 4,
+        amenities: ["pool", "wifi"],
+        lodgingType: "hotel",
+        accommodationType: "entire_place",
+        rates: [
+          { amount: 100, site: "Google" },
+          { amount: 110, site: "Expedia" },
+        ],
+      }),
+      offerWith({
+        hotelClass: 5,
+        amenities: ["pool", "gym"],
+        lodgingType: "hotel",
+        accommodationType: "private_room",
+        rates: [{ amount: 200, site: "Google" }],
+      }),
+      offerWith({
+        hotelClass: 4,
+        amenities: ["wifi"],
+        lodgingType: "hostel",
+        rates: [{ amount: 50, site: "Airbnb" }],
+      }),
+    ];
+    const f = aggregateFacets(offers);
+    expect(f.hotel_classes).toEqual({ "4": 2, "5": 1 });
+    expect(f.amenities).toEqual({ pool: 2, wifi: 2, gym: 1 });
+    expect(f.lodging_types).toEqual({ hotel: 2, hostel: 1 });
+    expect(f.accommodation_types).toEqual({
+      entire_place: 1,
+      private_room: 1,
+    });
+    expect(f.sources).toEqual({ Google: 2, Expedia: 1, Airbnb: 1 });
+  });
+
+  it("computes 4 price quartile buckets over the price set", () => {
+    const offers: LodgingOffer[] = Array.from({ length: 8 }, (_, i) =>
+      offerWith({ rates: [{ amount: (i + 1) * 100, site: "Google" }] }),
+    );
+    const f = aggregateFacets(offers);
+    expect(f.price_buckets).toHaveLength(4);
+    expect(f.price_buckets[0]?.min).toBe(100);
+    expect(f.price_buckets[3]?.max).toBeNull();
+    const total = f.price_buckets.reduce((s, b) => s + b.count, 0);
+    expect(total).toBe(8);
+  });
+
+  it("returns an empty/zero-valued facets shape for an empty offer list", () => {
+    const f = aggregateFacets([]);
+    expect(f.hotel_classes).toEqual({});
+    expect(f.amenities).toEqual({});
+    expect(f.lodging_types).toEqual({});
+    expect(f.accommodation_types).toEqual({});
+    expect(f.sources).toEqual({});
+    expect(f.price_buckets).toEqual([]);
   });
 });
