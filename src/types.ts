@@ -223,3 +223,108 @@ export type PlaceSuggestion = {
   };
   types?: string[];
 };
+
+export type LodgingId = {
+  type: string;
+  lodgingId: string;
+};
+
+export type LodgingImage = {
+  url: string;
+  thumbnailUrl: string;
+};
+
+export type LodgingPriceRate = {
+  amount: number;
+  currencyCode: string;
+  total?: number;
+  source?: string;
+  frequency?: string;
+  site: string;
+  bookingUrl: string;
+  hasFreeCancellation?: boolean;
+  hasMemberDeal?: boolean;
+  nightlyStrikethrough?: number;
+};
+
+export type LodgingInfo = {
+  id: LodgingId;
+  name: string;
+  rating?: { source: string; value: number };
+  ratingCount?: number;
+  location: { latitude: number; longitude: number };
+  images?: LodgingImage[];
+  amenities?: string[];
+  hotelClass?: number;
+  lodgingType?: string;
+  accommodationType?: string;
+};
+
+export type LodgingOffer = {
+  lodging: LodgingInfo;
+  offerId?: string;
+  source?: string;
+  priceRate?: LodgingPriceRate;
+  priceRates?: LodgingPriceRate[];
+  includesDueAtPropertyFees?: boolean;
+};
+
+export type LodgingSearchResponse = {
+  isComplete: boolean;
+  offers: LodgingOffer[];
+};
+
+export type HotelDeal = {
+  vendor: string;
+  price: number;
+  url: string;
+  free_cancellation: boolean;
+  member_deal: boolean;
+};
+
+export type HotelOffer = {
+  name: string;
+  url: string;
+  rating: number | null;
+  rating_count: number | null;
+  price_min: number;
+  price_max: number;
+  currency: string;
+  location: { lat: number; lng: number };
+  thumbnail: string | null;
+  deals: HotelDeal[];
+};
+
+export type HotelGeo = {
+  geo_id: number;
+  name: string;
+  country: string | null;
+  bounds: [number, number, number, number] | null;
+};
+
+export type HotelPriceBucket = {
+  min: number;
+  max: number | null;
+  count: number;
+};
+
+export type HotelAvailableFilters = {
+  hotel_classes: Record<string, number>;
+  amenities: Record<string, number>;
+  lodging_types: Record<string, number>;
+  accommodation_types: Record<string, number>;
+  sources: Record<string, number>;
+  price_buckets: HotelPriceBucket[];
+};
+
+export type HotelSearchResult = {
+  geo: HotelGeo;
+  alternative_geos: HotelGeo[];
+  currency: string;
+  complete: boolean;
+  total_results: number;
+  returned: number;
+  applied_filters: Record<string, unknown>;
+  available_filters: HotelAvailableFilters;
+  offers: HotelOffer[];
+};
