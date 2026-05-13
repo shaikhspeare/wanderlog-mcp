@@ -247,6 +247,12 @@ export type LodgingPriceRate = {
   nightlyStrikethrough?: number;
 };
 
+/** Each amenity Wanderlog returns is an object, not a plain string. */
+export type LodgingAmenity = {
+  name: string;
+  category: string | null;
+};
+
 export type LodgingInfo = {
   id: LodgingId;
   name: string;
@@ -254,7 +260,8 @@ export type LodgingInfo = {
   ratingCount?: number;
   location: { latitude: number; longitude: number };
   images?: LodgingImage[];
-  amenities?: string[];
+  /** Array of amenity objects. lodgingType/accommodationType are absent in Google-sourced data. */
+  amenities?: LodgingAmenity[];
   hotelClass?: number;
   lodgingType?: string;
   accommodationType?: string;
@@ -293,6 +300,11 @@ export type HotelOffer = {
   location: { lat: number; lng: number };
   thumbnail: string | null;
   deals: HotelDeal[];
+  // metadata fields (always populated; concise mode strips them before wire output)
+  amenities: string[];
+  hotel_class: number | null;
+  lodging_type: string | null;
+  accommodation_type: string | null;
 };
 
 export type HotelGeo = {

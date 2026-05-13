@@ -195,7 +195,7 @@ function offerWith(args: {
       name: "Test",
       location: { latitude: 0, longitude: 0 },
       hotelClass: args.hotelClass,
-      amenities: args.amenities,
+      amenities: args.amenities?.map((name) => ({ name, category: null })),
       lodgingType: args.lodgingType,
       accommodationType: args.accommodationType,
     },
@@ -332,27 +332,6 @@ describe("resolveGeo", () => {
     expect(result.geo.bounds).toEqual([10, 20, 30, 40]);
     expect(result.alternative_geos).toEqual([]);
   });
-
-  it("derives geo from a trip's first resource geo when trip_key set", async () => {
-    const { resolveGeo } = await import("../../src/tools/search-hotels.ts");
-    const ctx = fakeCtx({
-      getTripWithResources: async () => ({
-        tripPlan: { key: "k", title: "Test trip" } as never,
-        geos: [
-          {
-            id: 80,
-            name: "Pattaya",
-            countryName: "Thailand",
-            bounds: [1, 2, 3, 4],
-          } as never,
-        ],
-      }),
-    });
-    const result = await resolveGeo(ctx, { trip_key: "abc" });
-    expect(result.geo.geo_id).toBe(80);
-    expect(result.geo.bounds).toEqual([1, 2, 3, 4]);
-    expect(result.alternative_geos).toEqual([]);
-  });
 });
 
 function makeOffer(name: string): LodgingOffer {
@@ -483,7 +462,7 @@ describe("searchHotels (handler)", () => {
         rating: { source: "Google", value: 9 },
         ratingCount: 100,
         location: { latitude: 12.93, longitude: 100.91 },
-        amenities: ["pool"],
+        amenities: [{ name: "pool", category: null }],
         hotelClass: 4,
         lodgingType: "hotel",
       },
@@ -600,5 +579,65 @@ describe("searchHotels (handler)", () => {
     expect(calls).toEqual(["USD"]);
     const parsed = JSON.parse(res.content[0]!.text);
     expect(parsed.currency).toBe("USD");
+  });
+
+  it("response_format='detailed' surfaces amenities and metadata; 'concise' (default) omits them", async () => {
+    const offer: LodgingOffer = {
+      lodging: {
+        id: { type: "google", lodgingId: "x" },
+        name: "Hotel Pattaya",
+        location: { latitude: 0, longitude: 0 },
+        amenities: [
+          { name: "pool", category: "outdoor" },
+          { name: "wifi", category: null },
+        ],
+        hotelClass: 5,
+        lodgingType: "hotel",
+        accommodationType: "entire_place",
+        images: [{ url: "u", thumbnailUrl: "thumb" }],
+      },
+      priceRate: {
+        amount: 100,
+        currencyCode: "USD",
+        site: "Google",
+        bookingUrl: "u",
+      },
+    };
+    const ctx = handlerCtx({
+      getGeo: async () => ({
+        id: 80,
+        name: "Pattaya",
+        bounds: [1, 2, 3, 4] as [number, number, number, number],
+      }),
+      searchLodgings: async () => ({ isComplete: true, offers: [offer] }),
+    });
+
+    const detailed = await searchHotels(ctx, {
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+      response_format: "detailed",
+    });
+    const detailedJson = JSON.parse(detailed.content[0]!.text);
+    expect(detailedJson.offers[0].amenities).toEqual(["pool", "wifi"]);
+    expect(detailedJson.offers[0].hotel_class).toBe(5);
+    expect(detailedJson.offers[0].lodging_type).toBe("hotel");
+    expect(detailedJson.offers[0].accommodation_type).toBe("entire_place");
+    expect(detailedJson.offers[0].thumbnail).toBe("thumb");
+
+    const concise = await searchHotels(ctx, {
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+    });
+    const conciseJson = JSON.parse(concise.content[0]!.text);
+    expect(conciseJson.offers[0].amenities).toBeUndefined();
+    expect(conciseJson.offers[0].hotel_class).toBeUndefined();
+    expect(conciseJson.offers[0].lodging_type).toBeUndefined();
+    expect(conciseJson.offers[0].accommodation_type).toBeUndefined();
+    expect(conciseJson.offers[0].thumbnail).toBeUndefined();
+    // Essentials still present:
+    expect(conciseJson.offers[0].name).toBe("Hotel Pattaya");
+    expect(conciseJson.offers[0].deals).toHaveLength(1);
   });
 });

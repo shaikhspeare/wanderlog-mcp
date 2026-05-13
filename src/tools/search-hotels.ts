@@ -7,6 +7,7 @@ import type {
   HotelOffer,
   HotelPriceBucket,
   HotelSearchResult,
+  LodgingAmenity,
   LodgingOffer,
   LodgingPriceRate,
   LodgingSearchResponse,
@@ -26,13 +27,6 @@ const SORT_VALUES = [
 ] as const;
 
 export const searchHotelsInputSchema = {
-  trip_key: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "Trip to source the destination from. The trip's primary geo (geoId + bounds) is used. Pass exactly one of trip_key, destination, or geo_id.",
-    ),
   destination: z
     .string()
     .min(1)
@@ -140,6 +134,12 @@ export const searchHotelsInputSchema = {
     .describe(
       "Override the default vendor set ['airbnb','expedia','google','kayak'].",
     ),
+  response_format: z
+    .enum(["concise", "detailed"])
+    .default("concise")
+    .describe(
+      "Output verbosity. 'concise' returns essential fields (name, price, rating, deals, location). 'detailed' also includes amenities, hotel_class, lodging_type, accommodation_type, and thumbnail.",
+    ),
 };
 
 export const searchHotelsDescription = `
@@ -147,13 +147,15 @@ Search Wanderlog's hotel aggregator (airbnb, expedia, google, kayak) for a desti
 date range. Returns ranked offers with per-vendor deal comparison and an
 available_filters facet block the LLM can use to narrow.
 
-Specify exactly one of trip_key, destination, or geo_id. For free-text destinations the
+Specify exactly one of destination or geo_id. For free-text destinations the
 highest-popularity match is picked; up to 2 candidates appear in alternative_geos as a soft
 hint — re-call with one of those geo_ids if the wrong city was chosen.
+
+Use response_format='detailed' to include amenities, hotel class, and property type on each
+offer. The default 'concise' format omits those fields to keep token usage low.
 `.trim();
 
 export type SearchHotelsArgs = {
-  trip_key?: string;
   destination?: string;
   geo_id?: number;
   check_in: string;
@@ -175,6 +177,7 @@ export type SearchHotelsArgs = {
   property_name?: string;
   vacation_rental_amenities?: string[];
   sources?: string[];
+  response_format?: "concise" | "detailed";
 };
 
 export function validateArgs(args: SearchHotelsArgs): Required<
@@ -191,13 +194,12 @@ export function validateArgs(args: SearchHotelsArgs): Required<
 > &
   SearchHotelsArgs {
   const modesSet = [
-    args.trip_key !== undefined,
     args.destination !== undefined,
     args.geo_id !== undefined,
   ].filter(Boolean).length;
   if (modesSet !== 1) {
     throw new WanderlogValidationError(
-      "Pass exactly one of trip_key, destination, or geo_id.",
+      "Pass exactly one of destination or geo_id.",
     );
   }
   if (args.check_out <= args.check_in) {
@@ -281,6 +283,10 @@ export function projectOffer(offer: LodgingOffer): HotelOffer {
     member_deal: r.hasMemberDeal ?? false,
   }));
   const prices = rates.map((r) => r.amount);
+  // Wanderlog returns amenities as objects {name, category}; surface the name strings.
+  const amenities = (offer.lodging.amenities ?? []).map(
+    (a: LodgingAmenity) => a.name,
+  );
   return {
     name: offer.lodging.name,
     url: primary.bookingUrl,
@@ -295,6 +301,10 @@ export function projectOffer(offer: LodgingOffer): HotelOffer {
     },
     thumbnail: offer.lodging.images?.[0]?.thumbnailUrl ?? null,
     deals,
+    amenities,
+    hotel_class: offer.lodging.hotelClass ?? null,
+    lodging_type: offer.lodging.lodgingType ?? null,
+    accommodation_type: offer.lodging.accommodationType ?? null,
   };
 }
 
@@ -349,7 +359,7 @@ export function aggregateFacets(
     if (typeof offer.lodging.hotelClass === "number") {
       inc(hotelClasses, String(offer.lodging.hotelClass));
     }
-    for (const a of offer.lodging.amenities ?? []) inc(amenities, a);
+    for (const a of offer.lodging.amenities ?? []) inc(amenities, a.name);
     inc(lodgingTypes, offer.lodging.lodgingType);
     inc(accommodationTypes, offer.lodging.accommodationType);
 
@@ -380,7 +390,7 @@ export function aggregateFacets(
 
 export async function resolveGeo(
   ctx: AppContext,
-  args: Pick<SearchHotelsArgs, "trip_key" | "destination" | "geo_id">,
+  args: Pick<SearchHotelsArgs, "destination" | "geo_id">,
 ): Promise<{ geo: HotelGeo; alternative_geos: HotelGeo[] }> {
   if (args.geo_id !== undefined) {
     const g = await ctx.rest.getGeo(args.geo_id);
@@ -390,26 +400,6 @@ export async function resolveGeo(
         name: g.name,
         country: g.countryName ?? null,
         bounds: g.bounds ?? null,
-      },
-      alternative_geos: [],
-    };
-  }
-  if (args.trip_key !== undefined) {
-    const { tripPlan, geos } = await ctx.rest.getTripWithResources(args.trip_key);
-    const primary = geos[0];
-    if (!primary) {
-      throw new WanderlogError(
-        `Trip "${tripPlan.title}" has no associated geo`,
-        "trip_has_no_geo",
-        "Open the trip in Wanderlog and add a destination, then retry.",
-      );
-    }
-    return {
-      geo: {
-        geo_id: primary.id,
-        name: primary.name,
-        country: primary.countryName ?? null,
-        bounds: primary.bounds ?? null,
       },
       alternative_geos: [],
     };
@@ -520,6 +510,21 @@ export async function searchHotels(
     const sliced = projected.slice(0, norm.limit);
     const facets = aggregateFacets(offers);
 
+    const format = norm.response_format ?? "concise";
+    const offersForWire =
+      format === "concise"
+        ? sliced.map(
+            ({
+              amenities: _a,
+              hotel_class: _hc,
+              lodging_type: _lt,
+              accommodation_type: _at,
+              thumbnail: _t,
+              ...rest
+            }) => rest,
+          )
+        : sliced;
+
     const result: HotelSearchResult = {
       geo,
       alternative_geos,
@@ -529,7 +534,7 @@ export async function searchHotels(
       returned: sliced.length,
       applied_filters: applied(norm),
       available_filters: facets,
-      offers: sliced,
+      offers: offersForWire as HotelOffer[],
     };
 
     return {
