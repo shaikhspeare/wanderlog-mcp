@@ -1,5 +1,7 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
+import type { HotelGeo } from "../types.js";
+import type { RestClient } from "../transport/rest.js";
 import {
   WanderlogError,
   WanderlogValidationError,
@@ -201,6 +203,44 @@ export function validateArgs(args: SearchHotelsArgs): Required<
     children_ages: args.children_ages ?? [],
     sort_by: args.sort_by ?? "ratings",
     limit: args.limit ?? 10,
+  };
+}
+
+export function buildSearchBody(
+  args: SearchHotelsArgs,
+  geo: HotelGeo,
+): Parameters<RestClient["searchLodgings"]>[0] {
+  if (!geo.bounds) {
+    throw new WanderlogValidationError(
+      `Geo ${geo.geo_id} (${geo.name}) has no bounds; cannot search lodgings.`,
+    );
+  }
+  return {
+    geoId: geo.geo_id,
+    bounds: geo.bounds,
+    startDate: args.check_in,
+    endDate: args.check_out,
+    adultCount: args.adult_count ?? 2,
+    roomCount: args.room_count ?? 1,
+    childrenAges: args.children_ages ?? [],
+    sortBy: args.sort_by ?? "ratings",
+    sources: args.sources,
+    filters: {
+      priceRange: args.price_range ?? null,
+      hotelClasses: args.hotel_classes ?? null,
+      minGuestRating: args.min_guest_rating ?? null,
+      propertyTypes: {
+        lodgingTypes: args.lodging_types ?? null,
+        accommodationTypes: args.accommodation_types ?? null,
+      },
+      hotelOrVacationRental: args.hotel_or_vacation_rental ?? "both",
+      amenities: args.amenities ?? null,
+      minBedsInRoom: args.min_beds_in_room ?? null,
+      propertyName: args.property_name ?? "",
+      vacationRentalFilters: {
+        amenities: args.vacation_rental_amenities ?? [],
+      },
+    },
   };
 }
 
