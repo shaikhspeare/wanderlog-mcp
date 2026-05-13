@@ -15,6 +15,10 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 **See a real example:** [14-day Japan Golden Route](https://wanderlog.com/view/dmvegdhqsa/japan-golden-route--tokyo--hakone--kyoto--nara--osaka) — built entirely by an AI agent using this MCP server.
 
+## What's New in v0.3.0
+
+- `wanderlog_search_hotels` — search Wanderlog's hotel aggregator across airbnb, expedia, google, and kayak. Returns ranked offers with per-vendor price comparison and faceted filter discovery so the LLM never has to memorise Wanderlog's internal enum values.
+
 ## What's New in v0.2.0
 
 - `wanderlog_rename_day` — replace auto-generated day headings (e.g. `"Barcelona"`) with descriptive ones (`"Arrival — Feria de Abril"`). Pass `""` to reset back to the default.
@@ -69,6 +73,7 @@ and a ryokan in Shinjuku."
 | `wanderlog_get_trip` | View a full itinerary, or filter to a single day |
 | `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
 | `wanderlog_search_places` | Find real-world places near a trip's destination |
+| `wanderlog_search_hotels` | Search Wanderlog's hotel aggregator (airbnb/expedia/google/kayak) with per-vendor deal comparison |
 | `wanderlog_create_trip` | Create a new trip with destination + date range |
 | `wanderlog_add_place` | Add a place to a specific day or general list |
 | `wanderlog_add_note` | Add a note (transit tips, booking info, local advice) |
