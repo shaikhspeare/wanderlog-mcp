@@ -377,6 +377,79 @@ export function aggregateFacets(
   };
 }
 
+export async function resolveGeo(
+  ctx: AppContext,
+  args: Pick<SearchHotelsArgs, "trip_key" | "destination" | "geo_id">,
+): Promise<{ geo: HotelGeo; alternative_geos: HotelGeo[] }> {
+  if (args.geo_id !== undefined) {
+    const g = await ctx.rest.getGeo(args.geo_id);
+    return {
+      geo: {
+        geo_id: g.id,
+        name: g.name,
+        country: g.countryName ?? null,
+        bounds: g.bounds ?? null,
+      },
+      alternative_geos: [],
+    };
+  }
+  if (args.trip_key !== undefined) {
+    const { tripPlan, geos } = await ctx.rest.getTripWithResources(args.trip_key);
+    const primary = geos[0];
+    if (!primary) {
+      throw new WanderlogError(
+        `Trip "${tripPlan.title}" has no associated geo`,
+        "trip_has_no_geo",
+        "Open the trip in Wanderlog and add a destination, then retry.",
+      );
+    }
+    return {
+      geo: {
+        geo_id: (primary as { id: number }).id,
+        name: (primary as { name: string }).name,
+        country: (primary as { countryName?: string }).countryName ?? null,
+        bounds:
+          (primary as { bounds?: [number, number, number, number] }).bounds ??
+          null,
+      },
+      alternative_geos: [],
+    };
+  }
+  // destination path
+  const candidates = await ctx.rest.geoAutocomplete(args.destination!);
+  if (candidates.length === 0) {
+    throw new WanderlogError(
+      `No geo found matching "${args.destination}"`,
+      "destination_not_found",
+      {
+        hint: "Try a more specific name (include the country) or pass an explicit geo_id from a prior search.",
+        followUps: [
+          "Retry wanderlog_search_hotels with a more specific destination string (include the country or region).",
+        ],
+      },
+    );
+  }
+  const ranked = [...candidates].sort(
+    (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0),
+  );
+  const top = ranked[0]!;
+  const alternatives = ranked.slice(1, 3).map((c) => ({
+    geo_id: c.id,
+    name: c.name,
+    country: c.countryName ?? null,
+    bounds: c.bounds ?? null,
+  }));
+  return {
+    geo: {
+      geo_id: top.id,
+      name: top.name,
+      country: top.countryName ?? null,
+      bounds: top.bounds ?? null,
+    },
+    alternative_geos: alternatives,
+  };
+}
+
 export async function searchHotels(
   _ctx: AppContext,
   _args: SearchHotelsArgs,

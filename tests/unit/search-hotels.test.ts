@@ -5,6 +5,7 @@ import {
   projectOffer,
 } from "../../src/tools/search-hotels.ts";
 import type { LodgingOffer } from "../../src/types.ts";
+import type { AppContext } from "../../src/context.ts";
 
 const GEO = {
   geo_id: 80,
@@ -263,5 +264,91 @@ describe("aggregateFacets", () => {
     expect(f.accommodation_types).toEqual({});
     expect(f.sources).toEqual({});
     expect(f.price_buckets).toEqual([]);
+  });
+});
+
+function fakeCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
+  return {
+    rest: {
+      geoAutocomplete: async () => [],
+      getGeo: async () => {
+        throw new Error("getGeo not stubbed");
+      },
+      getTripWithResources: async () => {
+        throw new Error("getTripWithResources not stubbed");
+      },
+      ...overrides,
+    },
+  } as unknown as AppContext;
+}
+
+describe("resolveGeo", () => {
+  it("auto-picks highest-popularity candidate and returns top 2 as alternatives", async () => {
+    const { resolveGeo } = await import("../../src/tools/search-hotels.ts");
+    const ctx = fakeCtx({
+      geoAutocomplete: async () => [
+        { id: 1, name: "Pattaya", countryName: "USA", popularity: 5, latitude: 0, longitude: 0 },
+        {
+          id: 2,
+          name: "Pattaya",
+          countryName: "Thailand",
+          popularity: 95,
+          latitude: 0,
+          longitude: 0,
+          bounds: [1, 2, 3, 4] as [number, number, number, number],
+        },
+        { id: 3, name: "Pattaya Beach", countryName: "Thailand", popularity: 50, latitude: 0, longitude: 0 },
+      ],
+    });
+    const result = await resolveGeo(ctx, { destination: "Pattaya" });
+    expect(result.geo.geo_id).toBe(2);
+    expect(result.geo.country).toBe("Thailand");
+    expect(result.geo.bounds).toEqual([1, 2, 3, 4]);
+    expect(result.alternative_geos.map((g: { geo_id: number }) => g.geo_id)).toEqual([3, 1]);
+  });
+
+  it("throws destination_not_found when geoAutocomplete returns []", async () => {
+    const { resolveGeo } = await import("../../src/tools/search-hotels.ts");
+    const ctx = fakeCtx({ geoAutocomplete: async () => [] });
+    await expect(resolveGeo(ctx, { destination: "NowhereLand" })).rejects.toMatchObject({
+      code: "destination_not_found",
+    });
+  });
+
+  it("uses getGeo for explicit geo_id", async () => {
+    const { resolveGeo } = await import("../../src/tools/search-hotels.ts");
+    const ctx = fakeCtx({
+      getGeo: async (id: number) => ({
+        id,
+        name: "Pattaya",
+        countryName: "Thailand",
+        bounds: [10, 20, 30, 40] as [number, number, number, number],
+      }),
+    });
+    const result = await resolveGeo(ctx, { geo_id: 80 });
+    expect(result.geo.geo_id).toBe(80);
+    expect(result.geo.bounds).toEqual([10, 20, 30, 40]);
+    expect(result.alternative_geos).toEqual([]);
+  });
+
+  it("derives geo from a trip's first resource geo when trip_key set", async () => {
+    const { resolveGeo } = await import("../../src/tools/search-hotels.ts");
+    const ctx = fakeCtx({
+      getTripWithResources: async () => ({
+        tripPlan: { key: "k", title: "Test trip" } as never,
+        geos: [
+          {
+            id: 80,
+            name: "Pattaya",
+            countryName: "Thailand",
+            bounds: [1, 2, 3, 4],
+          } as never,
+        ],
+      }),
+    });
+    const result = await resolveGeo(ctx, { trip_key: "abc" });
+    expect(result.geo.geo_id).toBe(80);
+    expect(result.geo.bounds).toEqual([1, 2, 3, 4]);
+    expect(result.alternative_geos).toEqual([]);
   });
 });
