@@ -75,7 +75,6 @@ export const searchHotelsInputSchema = {
     .max(50)
     .default(10)
     .describe("Maximum number of offers in the response."),
-  // --- filters (all optional) ---
   price_range: z
     .tuple([z.number().min(0), z.number().min(0)])
     .optional()
@@ -407,17 +406,14 @@ export async function resolveGeo(
     }
     return {
       geo: {
-        geo_id: (primary as { id: number }).id,
-        name: (primary as { name: string }).name,
-        country: (primary as { countryName?: string }).countryName ?? null,
-        bounds:
-          (primary as { bounds?: [number, number, number, number] }).bounds ??
-          null,
+        geo_id: primary.id,
+        name: primary.name,
+        country: primary.countryName ?? null,
+        bounds: primary.bounds ?? null,
       },
       alternative_geos: [],
     };
   }
-  // destination path
   const candidates = await ctx.rest.geoAutocomplete(args.destination!);
   if (candidates.length === 0) {
     throw new WanderlogError(
