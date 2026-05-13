@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import {
   aggregateFacets,
   buildSearchBody,
+  pollSearch,
   projectOffer,
+  searchHotels,
 } from "../../src/tools/search-hotels.ts";
-import type { LodgingOffer } from "../../src/types.ts";
+import type { LodgingOffer, LodgingSearchResponse } from "../../src/types.ts";
 import type { AppContext } from "../../src/context.ts";
 
 const GEO = {
@@ -350,5 +352,207 @@ describe("resolveGeo", () => {
     expect(result.geo.geo_id).toBe(80);
     expect(result.geo.bounds).toEqual([1, 2, 3, 4]);
     expect(result.alternative_geos).toEqual([]);
+  });
+});
+
+function makeOffer(name: string): LodgingOffer {
+  return {
+    lodging: {
+      id: { type: "google", lodgingId: name },
+      name,
+      location: { latitude: 0, longitude: 0 },
+    },
+    priceRate: {
+      amount: 100,
+      currencyCode: "USD",
+      site: "Google",
+      bookingUrl: "u",
+    },
+  };
+}
+
+describe("pollSearch", () => {
+  it("returns immediately when isComplete:true on first call", async () => {
+    let calls = 0;
+    const result = await pollSearch({
+      fetchPage: async () => {
+        calls++;
+        return {
+          isComplete: true,
+          offers: [makeOffer("A")],
+        } as LodgingSearchResponse;
+      },
+      limit: 10,
+      maxRetries: 3,
+      sleep: async () => {},
+    });
+    expect(calls).toBe(1);
+    expect(result.complete).toBe(true);
+    expect(result.offers).toHaveLength(1);
+  });
+
+  it("stops early when offers.length >= limit even if incomplete", async () => {
+    let calls = 0;
+    const result = await pollSearch({
+      fetchPage: async () => {
+        calls++;
+        return {
+          isComplete: false,
+          offers: [makeOffer("A"), makeOffer("B"), makeOffer("C")],
+        } as LodgingSearchResponse;
+      },
+      limit: 2,
+      maxRetries: 3,
+      sleep: async () => {},
+    });
+    expect(calls).toBe(1);
+    expect(result.complete).toBe(false);
+    expect(result.offers).toHaveLength(3);
+  });
+
+  it("polls up to maxRetries then returns complete:false", async () => {
+    let calls = 0;
+    const result = await pollSearch({
+      fetchPage: async () => {
+        calls++;
+        return {
+          isComplete: false,
+          offers: [makeOffer("A")],
+        } as LodgingSearchResponse;
+      },
+      limit: 10,
+      maxRetries: 3,
+      sleep: async () => {},
+    });
+    expect(calls).toBe(4); // initial + 3 retries
+    expect(result.complete).toBe(false);
+  });
+});
+
+function handlerCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
+  return {
+    rest: {
+      geoAutocomplete: async () => [],
+      getGeo: async () => ({ id: 80, name: "Pattaya", bounds: [1, 2, 3, 4] }),
+      getTripWithResources: async () => ({
+        tripPlan: {} as never,
+        geos: [],
+      }),
+      searchLodgings: async () => ({ isComplete: true, offers: [] }),
+      ...overrides,
+    },
+  } as unknown as AppContext;
+}
+
+describe("searchHotels (handler)", () => {
+  it("rejects when no destination mode is set", async () => {
+    const res = await searchHotels(handlerCtx(), {
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]?.text).toMatch(/exactly one of/i);
+  });
+
+  it("rejects when more than one mode is set", async () => {
+    const res = await searchHotels(handlerCtx(), {
+      destination: "Pattaya",
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+    });
+    expect(res.isError).toBe(true);
+  });
+
+  it("rejects when check_out <= check_in", async () => {
+    const res = await searchHotels(handlerCtx(), {
+      destination: "Pattaya",
+      check_in: "2026-06-03",
+      check_out: "2026-06-01",
+    });
+    expect(res.isError).toBe(true);
+  });
+
+  it("returns JSON with offers, geo, and facets for a successful search", async () => {
+    const offer: LodgingOffer = {
+      lodging: {
+        id: { type: "google", lodgingId: "x" },
+        name: "Hotel Pattaya",
+        rating: { source: "Google", value: 9 },
+        ratingCount: 100,
+        location: { latitude: 12.93, longitude: 100.91 },
+        amenities: ["pool"],
+        hotelClass: 4,
+        lodgingType: "hotel",
+      },
+      priceRates: [
+        { amount: 5000, currencyCode: "INR", site: "Google", bookingUrl: "g" },
+        { amount: 5500, currencyCode: "INR", site: "Expedia", bookingUrl: "e" },
+      ],
+    };
+    const ctx = handlerCtx({
+      geoAutocomplete: async () => [
+        {
+          id: 80,
+          name: "Pattaya",
+          countryName: "Thailand",
+          popularity: 90,
+          latitude: 0,
+          longitude: 0,
+          bounds: [1, 2, 3, 4],
+        },
+      ],
+      searchLodgings: async () => ({ isComplete: true, offers: [offer] }),
+    });
+    const res = await searchHotels(ctx, {
+      destination: "Pattaya",
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+      limit: 5,
+    });
+    expect(res.isError).toBeUndefined();
+    const parsed = JSON.parse(res.content[0]!.text);
+    expect(parsed.geo.geo_id).toBe(80);
+    expect(parsed.offers).toHaveLength(1);
+    expect(parsed.offers[0].name).toBe("Hotel Pattaya");
+    expect(parsed.total_results).toBe(1);
+    expect(parsed.returned).toBe(1);
+    expect(parsed.available_filters.amenities.pool).toBe(1);
+    expect(parsed.complete).toBe(true);
+    expect(parsed.currency).toBe("INR");
+  });
+
+  it("slices to limit and reports total_results from the full set", async () => {
+    const offers: LodgingOffer[] = Array.from({ length: 25 }, (_, i) => ({
+      lodging: {
+        id: { type: "google", lodgingId: String(i) },
+        name: `Hotel ${i}`,
+        location: { latitude: 0, longitude: 0 },
+      },
+      priceRate: {
+        amount: 100 + i,
+        currencyCode: "USD",
+        site: "Google",
+        bookingUrl: "u",
+      },
+    }));
+    const ctx = handlerCtx({
+      getGeo: async () => ({
+        id: 80,
+        name: "Pattaya",
+        bounds: [1, 2, 3, 4] as [number, number, number, number],
+      }),
+      searchLodgings: async () => ({ isComplete: true, offers }),
+    });
+    const res = await searchHotels(ctx, {
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+      limit: 5,
+    });
+    const parsed = JSON.parse(res.content[0]!.text);
+    expect(parsed.total_results).toBe(25);
+    expect(parsed.returned).toBe(5);
+    expect(parsed.offers).toHaveLength(5);
   });
 });

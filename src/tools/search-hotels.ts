@@ -6,8 +6,10 @@ import type {
   HotelGeo,
   HotelOffer,
   HotelPriceBucket,
+  HotelSearchResult,
   LodgingOffer,
   LodgingPriceRate,
+  LodgingSearchResponse,
 } from "../types.js";
 import type { RestClient } from "../transport/rest.js";
 import {
@@ -450,9 +452,97 @@ export async function resolveGeo(
   };
 }
 
+const POLL_INTERVAL_MS = 800;
+const POLL_MAX_RETRIES = 3;
+
+export async function pollSearch(opts: {
+  fetchPage: () => Promise<LodgingSearchResponse>;
+  limit: number;
+  maxRetries: number;
+  sleep: (ms: number) => Promise<void>;
+}): Promise<{ offers: LodgingOffer[]; complete: boolean }> {
+  let lastResult: LodgingSearchResponse | null = null;
+  for (let attempt = 0; attempt <= opts.maxRetries; attempt++) {
+    lastResult = await opts.fetchPage();
+    if (lastResult.isComplete || lastResult.offers.length >= opts.limit) {
+      return { offers: lastResult.offers, complete: lastResult.isComplete };
+    }
+    if (attempt < opts.maxRetries) {
+      await opts.sleep(POLL_INTERVAL_MS);
+    }
+  }
+  return {
+    offers: lastResult?.offers ?? [],
+    complete: lastResult?.isComplete ?? false,
+  };
+}
+
+function defaultSleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function applied(args: SearchHotelsArgs): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  if (args.price_range) out.price_range = args.price_range;
+  if (args.hotel_classes) out.hotel_classes = args.hotel_classes;
+  if (args.min_guest_rating !== undefined)
+    out.min_guest_rating = args.min_guest_rating;
+  if (args.lodging_types) out.lodging_types = args.lodging_types;
+  if (args.accommodation_types)
+    out.accommodation_types = args.accommodation_types;
+  if (args.hotel_or_vacation_rental)
+    out.hotel_or_vacation_rental = args.hotel_or_vacation_rental;
+  if (args.amenities) out.amenities = args.amenities;
+  if (args.min_beds_in_room !== undefined)
+    out.min_beds_in_room = args.min_beds_in_room;
+  if (args.property_name) out.property_name = args.property_name;
+  if (args.vacation_rental_amenities)
+    out.vacation_rental_amenities = args.vacation_rental_amenities;
+  if (args.sources) out.sources = args.sources;
+  return out;
+}
+
 export async function searchHotels(
-  _ctx: AppContext,
-  _args: SearchHotelsArgs,
+  ctx: AppContext,
+  args: SearchHotelsArgs,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
-  throw new WanderlogError("Not implemented", "not_implemented");
+  try {
+    const norm = validateArgs(args);
+    const { geo, alternative_geos } = await resolveGeo(ctx, norm);
+    const body = buildSearchBody(norm, geo);
+
+    const { offers, complete } = await pollSearch({
+      fetchPage: () => ctx.rest.searchLodgings(body),
+      limit: norm.limit,
+      maxRetries: POLL_MAX_RETRIES,
+      sleep: defaultSleep,
+    });
+
+    const projected = offers.map(projectOffer);
+    const sliced = projected.slice(0, norm.limit);
+    const facets = aggregateFacets(offers);
+    const currency = projected[0]?.currency ?? "USD";
+
+    const result: HotelSearchResult = {
+      geo,
+      alternative_geos,
+      currency,
+      complete,
+      total_results: offers.length,
+      returned: sliced.length,
+      applied_filters: applied(norm),
+      available_filters: facets,
+      offers: sliced,
+    };
+
+    return {
+      content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+    };
+  } catch (err) {
+    const e =
+      err instanceof WanderlogError
+        ? err.toUserMessage()
+        : `Unexpected error: ${(err as Error).message}`;
+    return { content: [{ type: "text", text: e }], isError: true };
+  }
 }
