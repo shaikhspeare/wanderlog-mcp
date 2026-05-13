@@ -315,6 +315,12 @@ export class RestClient {
     return env.data;
   }
 
+  async setCurrencyPreference(currency: string): Promise<void> {
+    await this.request<Envelope<unknown>>("POST", "/api/sessionStore", {
+      body: { key: "currencyPreference", value: currency },
+    });
+  }
+
   async deleteTrip(tripKey: string): Promise<void> {
     await this.request<Envelope<{}>>(
       "DELETE",

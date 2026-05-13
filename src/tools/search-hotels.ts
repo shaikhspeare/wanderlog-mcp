@@ -75,6 +75,13 @@ export const searchHotelsInputSchema = {
     .max(50)
     .default(10)
     .describe("Maximum number of offers in the response."),
+  currency: z
+    .string()
+    .length(3)
+    .optional()
+    .describe(
+      "ISO 4217 currency code for prices (e.g. 'INR', 'USD', 'ARS'). Defaults to the WANDERLOG_DEFAULT_CURRENCY env var, or 'USD' if unset. The server-side session preference is updated before searching, so all returned prices are in this currency.",
+    ),
   price_range: z
     .tuple([z.number().min(0), z.number().min(0)])
     .optional()
@@ -136,21 +143,13 @@ export const searchHotelsInputSchema = {
 };
 
 export const searchHotelsDescription = `
-Searches Wanderlog's hotel aggregator across airbnb, expedia, google, and kayak
-for a destination + date range. Returns ranked offers with per-vendor deal
-comparison plus an 'available_filters' facet block the LLM can use to narrow.
+Search Wanderlog's hotel aggregator (airbnb, expedia, google, kayak) for a destination and
+date range. Returns ranked offers with per-vendor deal comparison and an
+available_filters facet block the LLM can use to narrow.
 
-Specify exactly one of trip_key, destination, or geo_id. For free-text
-destinations the highest-popularity match is picked; the next 1-2 candidates
-appear in 'alternative_geos' as a soft hint — if the wrong city was chosen,
-re-call with one of those geo_ids.
-
-The response includes 'total_results' so the LLM knows how many offers exist
-beyond the returned slice, and 'available_filters' (counts per value) so the
-LLM can pick valid filter values without guessing Wanderlog's internal enums.
-
-Currency follows your Wanderlog session preference (change it at wanderlog.com
-account settings); it's not a tool parameter.
+Specify exactly one of trip_key, destination, or geo_id. For free-text destinations the
+highest-popularity match is picked; up to 2 candidates appear in alternative_geos as a soft
+hint — re-call with one of those geo_ids if the wrong city was chosen.
 `.trim();
 
 export type SearchHotelsArgs = {
@@ -164,6 +163,7 @@ export type SearchHotelsArgs = {
   children_ages?: number[];
   sort_by?: (typeof SORT_VALUES)[number];
   limit?: number;
+  currency?: string;
   price_range?: [number, number];
   hotel_classes?: number[];
   min_guest_rating?: number;
@@ -505,6 +505,8 @@ export async function searchHotels(
   try {
     const norm = validateArgs(args);
     const { geo, alternative_geos } = await resolveGeo(ctx, norm);
+    const currency = norm.currency ?? ctx.config.defaultCurrency ?? "USD";
+    await ctx.rest.setCurrencyPreference(currency);
     const body = buildSearchBody(norm, geo);
 
     const { offers, complete } = await pollSearch({
@@ -517,7 +519,6 @@ export async function searchHotels(
     const projected = offers.map(projectOffer);
     const sliced = projected.slice(0, norm.limit);
     const facets = aggregateFacets(offers);
-    const currency = projected[0]?.currency ?? "USD";
 
     const result: HotelSearchResult = {
       geo,

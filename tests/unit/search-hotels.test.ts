@@ -431,6 +431,7 @@ describe("pollSearch", () => {
 
 function handlerCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
   return {
+    config: {} as never,
     rest: {
       geoAutocomplete: async () => [],
       getGeo: async () => ({ id: 80, name: "Pattaya", bounds: [1, 2, 3, 4] }),
@@ -439,6 +440,7 @@ function handlerCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
         geos: [],
       }),
       searchLodgings: async () => ({ isComplete: true, offers: [] }),
+      setCurrencyPreference: async () => {},
       ...overrides,
     },
   } as unknown as AppContext;
@@ -519,7 +521,7 @@ describe("searchHotels (handler)", () => {
     expect(parsed.returned).toBe(1);
     expect(parsed.available_filters.amenities.pool).toBe(1);
     expect(parsed.complete).toBe(true);
-    expect(parsed.currency).toBe("INR");
+    expect(parsed.currency).toBe("USD");
   });
 
   it("slices to limit and reports total_results from the full set", async () => {
@@ -554,5 +556,49 @@ describe("searchHotels (handler)", () => {
     expect(parsed.total_results).toBe(25);
     expect(parsed.returned).toBe(5);
     expect(parsed.offers).toHaveLength(5);
+  });
+
+  it("sets the session currency before searching", async () => {
+    const calls: string[] = [];
+    const ctx = handlerCtx({
+      getGeo: async () => ({
+        id: 80,
+        name: "Pattaya",
+        bounds: [1, 2, 3, 4] as [number, number, number, number],
+      }),
+      setCurrencyPreference: async (c: string) => {
+        calls.push(c);
+      },
+      searchLodgings: async () => ({ isComplete: true, offers: [] }),
+    });
+    await searchHotels(ctx, {
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+      currency: "ARS",
+    });
+    expect(calls).toEqual(["ARS"]);
+  });
+
+  it("falls back to USD when no currency is passed and config has none", async () => {
+    const calls: string[] = [];
+    const ctx = handlerCtx({
+      getGeo: async () => ({
+        id: 80,
+        name: "Pattaya",
+        bounds: [1, 2, 3, 4] as [number, number, number, number],
+      }),
+      setCurrencyPreference: async (c: string) => {
+        calls.push(c);
+      },
+    });
+    const res = await searchHotels(ctx, {
+      geo_id: 80,
+      check_in: "2026-06-01",
+      check_out: "2026-06-03",
+    });
+    expect(calls).toEqual(["USD"]);
+    const parsed = JSON.parse(res.content[0]!.text);
+    expect(parsed.currency).toBe("USD");
   });
 });
