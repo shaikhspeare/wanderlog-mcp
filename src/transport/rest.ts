@@ -7,6 +7,7 @@ import {
 } from "../errors.js";
 import type {
   Geo,
+  LodgingSearchResponse,
   PlaceData,
   PlaceSuggestion,
   TripPlan,
@@ -219,6 +220,68 @@ export class RestClient {
       throw new WanderlogNotFoundError("Geo", String(geoId));
     }
     return env.data;
+  }
+
+  async searchLodgings(args: {
+    geoId: number;
+    bounds: [number, number, number, number];
+    startDate: string;
+    endDate: string;
+    adultCount: number;
+    roomCount: number;
+    childrenAges: number[];
+    sortBy: "ratings" | "price_low_to_high" | "price_high_to_low" | "deals";
+    filters?: {
+      priceRange?: [number, number] | null;
+      hotelClasses?: number[] | null;
+      minGuestRating?: number | null;
+      propertyTypes?: {
+        lodgingTypes?: string[] | null;
+        accommodationTypes?: string[] | null;
+      };
+      hotelOrVacationRental?: "hotel" | "rental" | "both";
+      amenities?: string[] | null;
+      minBedsInRoom?: number | null;
+      propertyName?: string;
+      vacationRentalFilters?: { amenities?: string[] };
+    };
+    sources?: string[];
+  }): Promise<LodgingSearchResponse> {
+    const body = {
+      geoId: args.geoId,
+      bounds: args.bounds,
+      dates: { startDate: args.startDate, endDate: args.endDate },
+      guests: {
+        adultCount: args.adultCount,
+        roomCount: args.roomCount,
+        childrenAges: args.childrenAges,
+      },
+      sortBy: args.sortBy,
+      filters: {
+        priceRange: args.filters?.priceRange ?? null,
+        hotelClasses: args.filters?.hotelClasses ?? null,
+        minGuestRating: args.filters?.minGuestRating ?? null,
+        propertyTypes: {
+          lodgingTypes: args.filters?.propertyTypes?.lodgingTypes ?? null,
+          accommodationTypes:
+            args.filters?.propertyTypes?.accommodationTypes ?? null,
+        },
+        hotelOrVacationRental: args.filters?.hotelOrVacationRental ?? "both",
+        amenities: args.filters?.amenities ?? null,
+        minBedsInRoom: args.filters?.minBedsInRoom ?? null,
+        propertyName: args.filters?.propertyName ?? "",
+        vacationRentalFilters: {
+          amenities: args.filters?.vacationRentalFilters?.amenities ?? [],
+        },
+      },
+      sources: args.sources ?? ["airbnb", "expedia", "google", "kayak"],
+    };
+    const env = await this.request<Envelope<{ data?: LodgingSearchResponse }>>(
+      "POST",
+      "/api/lodging/searchLodgings",
+      { body },
+    );
+    return env.data ?? { isComplete: true, offers: [] };
   }
 
   async createTrip(args: {
