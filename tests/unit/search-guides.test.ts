@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import type { AppContext } from "../../src/context.js";
+import type { AppContext } from "../../src/context.ts";
 import {
   __resetCacheForTests,
   loadGoodGuides,
   projectGuide,
   resolveGeo,
   searchGuides,
-} from "../../src/tools/search-guides.js";
-import type { GeoWithGoodGuides, GuidesForGeoResponse, WanderlogGuide } from "../../src/types.js";
+} from "../../src/tools/search-guides.ts";
+import type { GeoWithGoodGuides, GuidesForGeoResponse, WanderlogGuide } from "../../src/types.ts";
 
 function fakeCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
   return {

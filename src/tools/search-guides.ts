@@ -77,12 +77,12 @@ export async function resolveGeo(
     const match = good.find((g) => g.id === args.geo_id);
     if (!match) {
       throw new WanderlogError(
-        `Geo ${args.geo_id} not found in guides list`,
+        "The provided geo_id is not in the curated guides list",
         "geo_not_found",
         {
-          hint: "Use a destination name or a geo_id from a prior search result.",
+          hint: "Use a destination name, or pass a geo_id from a prior wanderlog_search_guides response's 'alternative_geos_with_guides'.",
           followUps: [
-            "Retry wanderlog_search_guides with a valid destination name.",
+            "Retry wanderlog_search_guides with a destination name (e.g. 'Vietnam', 'Kyoto').",
           ],
         },
       );

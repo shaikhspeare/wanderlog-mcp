@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { createContext } from "../../src/context.js";
-import { searchGuides } from "../../src/tools/search-guides.js";
-import { getGuide } from "../../src/tools/get-guide.js";
+import { createContext } from "../../src/context.ts";
+import { searchGuides } from "../../src/tools/search-guides.ts";
+import { getGuide } from "../../src/tools/get-guide.ts";
 
 const HAS_COOKIE = Boolean(process.env.WANDERLOG_COOKIE);
 
