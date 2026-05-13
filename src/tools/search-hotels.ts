@@ -1,6 +1,12 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
-import type { HotelGeo } from "../types.js";
+import type {
+  HotelDeal,
+  HotelGeo,
+  HotelOffer,
+  LodgingOffer,
+  LodgingPriceRate,
+} from "../types.js";
 import type { RestClient } from "../transport/rest.js";
 import {
   WanderlogError,
@@ -241,6 +247,51 @@ export function buildSearchBody(
         amenities: args.vacation_rental_amenities ?? [],
       },
     },
+  };
+}
+
+function pickPrimaryDeal(rates: LodgingPriceRate[]): LodgingPriceRate {
+  return rates.reduce((cheapest, r) =>
+    r.amount < cheapest.amount ? r : cheapest,
+  );
+}
+
+export function projectOffer(offer: LodgingOffer): HotelOffer {
+  const rates =
+    offer.priceRates && offer.priceRates.length > 0
+      ? offer.priceRates
+      : offer.priceRate
+        ? [offer.priceRate]
+        : [];
+  if (rates.length === 0) {
+    throw new WanderlogError(
+      `Lodging offer ${offer.lodging.id.lodgingId} has no priceRate(s)`,
+      "missing_price_rate",
+    );
+  }
+  const primary = pickPrimaryDeal(rates);
+  const deals: HotelDeal[] = rates.map((r) => ({
+    vendor: r.site,
+    price: r.amount,
+    url: r.bookingUrl,
+    free_cancellation: r.hasFreeCancellation ?? false,
+    member_deal: r.hasMemberDeal ?? false,
+  }));
+  const prices = rates.map((r) => r.amount);
+  return {
+    name: offer.lodging.name,
+    url: primary.bookingUrl,
+    rating: offer.lodging.rating?.value ?? null,
+    rating_count: offer.lodging.ratingCount ?? null,
+    price_min: Math.min(...prices),
+    price_max: Math.max(...prices),
+    currency: primary.currencyCode,
+    location: {
+      lat: offer.lodging.location.latitude,
+      lng: offer.lodging.location.longitude,
+    },
+    thumbnail: offer.lodging.images?.[0]?.thumbnailUrl ?? null,
+    deals,
   };
 }
 

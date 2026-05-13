@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { buildSearchBody } from "../../src/tools/search-hotels.ts";
+import { buildSearchBody, projectOffer } from "../../src/tools/search-hotels.ts";
+import type { LodgingOffer } from "../../src/types.ts";
 
 const GEO = {
   geo_id: 80,
@@ -89,5 +90,87 @@ describe("buildSearchBody", () => {
         { geo_id: 999, name: "Nowhere", country: null, bounds: null },
       ),
     ).toThrow(/no bounds/);
+  });
+});
+
+function rate(
+  amount: number,
+  site: string,
+  opts: { freeCancel?: boolean; member?: boolean } = {},
+) {
+  return {
+    amount,
+    currencyCode: "INR",
+    site,
+    bookingUrl: `https://example.com/${site.toLowerCase()}`,
+    hasFreeCancellation: opts.freeCancel ?? false,
+    hasMemberDeal: opts.member ?? false,
+  };
+}
+
+describe("projectOffer", () => {
+  it("computes price_min/max from priceRates and points url at the cheapest", () => {
+    const offer: LodgingOffer = {
+      lodging: {
+        id: { type: "google", lodgingId: "abc" },
+        name: "Test Hotel",
+        rating: { source: "Google", value: 8.5 },
+        ratingCount: 200,
+        location: { latitude: 12.93, longitude: 100.91 },
+        images: [{ url: "u", thumbnailUrl: "thumb" }],
+      },
+      priceRates: [
+        rate(9345, "Expedia", { freeCancel: true }),
+        rate(8872, "Google"),
+        rate(11048, "Booking.com"),
+      ],
+    };
+    const projected = projectOffer(offer);
+    expect(projected.price_min).toBe(8872);
+    expect(projected.price_max).toBe(11048);
+    expect(projected.currency).toBe("INR");
+    expect(projected.url).toBe("https://example.com/google");
+    expect(projected.thumbnail).toBe("thumb");
+    expect(projected.rating).toBe(8.5);
+    expect(projected.rating_count).toBe(200);
+    expect(projected.location).toEqual({ lat: 12.93, lng: 100.91 });
+    expect(projected.deals).toHaveLength(3);
+    expect(projected.deals.map((d) => d.vendor)).toEqual([
+      "Expedia",
+      "Google",
+      "Booking.com",
+    ]);
+    expect(projected.deals[0]?.free_cancellation).toBe(true);
+  });
+
+  it("falls back to single priceRate when priceRates is missing", () => {
+    const offer: LodgingOffer = {
+      lodging: {
+        id: { type: "google", lodgingId: "abc" },
+        name: "Test Hotel",
+        location: { latitude: 0, longitude: 0 },
+      },
+      priceRate: rate(5000, "Google"),
+    };
+    const projected = projectOffer(offer);
+    expect(projected.price_min).toBe(5000);
+    expect(projected.price_max).toBe(5000);
+    expect(projected.deals).toHaveLength(1);
+    expect(projected.url).toBe("https://example.com/google");
+  });
+
+  it("returns null for missing rating/rating_count/thumbnail", () => {
+    const offer: LodgingOffer = {
+      lodging: {
+        id: { type: "google", lodgingId: "abc" },
+        name: "Test Hotel",
+        location: { latitude: 0, longitude: 0 },
+      },
+      priceRate: rate(5000, "Google"),
+    };
+    const projected = projectOffer(offer);
+    expect(projected.rating).toBeNull();
+    expect(projected.rating_count).toBeNull();
+    expect(projected.thumbnail).toBeNull();
   });
 });
