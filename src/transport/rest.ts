@@ -168,12 +168,57 @@ export class RestClient {
 
   async geoAutocomplete(
     query: string,
-  ): Promise<Array<{ id: number; name: string; countryName?: string; stateName?: string; latitude: number; longitude: number; popularity?: number }>> {
-    const env = await this.request<Envelope<{ data?: Array<{ id: number; name: string; countryName?: string; stateName?: string; latitude: number; longitude: number; popularity?: number }> }>>(
-      "GET",
-      `/api/geo/autocomplete/${encodeURIComponent(query)}`,
-    );
+  ): Promise<
+    Array<{
+      id: number;
+      name: string;
+      countryName?: string;
+      stateName?: string;
+      latitude: number;
+      longitude: number;
+      popularity?: number;
+      bounds?: [number, number, number, number];
+    }>
+  > {
+    const env = await this.request<
+      Envelope<{
+        data?: Array<{
+          id: number;
+          name: string;
+          countryName?: string;
+          stateName?: string;
+          latitude: number;
+          longitude: number;
+          popularity?: number;
+          bounds?: [number, number, number, number];
+        }>;
+      }>
+    >("GET", `/api/geo/autocomplete/${encodeURIComponent(query)}`);
     return env.data ?? [];
+  }
+
+  async getGeo(
+    geoId: number,
+  ): Promise<{
+    id: number;
+    name: string;
+    countryName?: string;
+    bounds?: [number, number, number, number];
+  }> {
+    const env = await this.request<
+      Envelope<{
+        data?: {
+          id: number;
+          name: string;
+          countryName?: string;
+          bounds?: [number, number, number, number];
+        };
+      }>
+    >("GET", `/api/geo/${encodeURIComponent(String(geoId))}/clientGeo`);
+    if (!env.data) {
+      throw new WanderlogNotFoundError("Geo", String(geoId));
+    }
+    return env.data;
   }
 
   async createTrip(args: {
