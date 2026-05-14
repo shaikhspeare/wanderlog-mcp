@@ -161,7 +161,7 @@ export function formatBlockLine(block: Block, format: ResponseFormat): string | 
       case "place":
         return formatPlaceBlock(block as PlaceBlock, format);
       case "note":
-        return formatNoteBlock(block as NoteBlock);
+        return formatNoteBlock(block as NoteBlock, format);
       case "checklist":
         return formatChecklistBlock(block as ChecklistBlock, format);
       case "flight":
@@ -208,18 +208,20 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
   if (block.hotel?.confirmationNumber)
     parts.push(`conf. ${block.hotel.confirmationNumber}`);
   if (hasNote) {
-    const truncated = inlineNote.length > 200 ? `${inlineNote.slice(0, 197)}…` : inlineNote;
-    parts.push(`📝 ${truncated}`);
+    parts.push(`📝 ${inlineNote}`);
   }
   return parts.join(" · ");
 }
 
-function formatNoteBlock(block: NoteBlock): string | null {
+function formatNoteBlock(block: NoteBlock, format: ResponseFormat): string | null {
   const text = quillToPlain(block.text);
   if (!text) return null;
   const oneLine = text.replace(/\s+/g, " ").trim();
-  const truncated = oneLine.length > 200 ? `${oneLine.slice(0, 197)}…` : oneLine;
-  return `📝 ${truncated}`;
+  if (format === "concise") {
+    const truncated = oneLine.length > 200 ? `${oneLine.slice(0, 197)}…` : oneLine;
+    return `📝 ${truncated}`;
+  }
+  return `📝 ${oneLine}`;
 }
 
 function formatChecklistBlock(block: ChecklistBlock, format: ResponseFormat): string | null {
