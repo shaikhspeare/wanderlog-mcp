@@ -143,6 +143,7 @@ export type Section = {
   heading: string;
   date: string | null;
   blocks: Block[];
+  text?: QuillDelta;
   placeMarkerColor?: string;
   placeMarkerIcon?: string;
 };
@@ -297,10 +298,11 @@ export type GuideSummary = {
   author: string;
   place_count: number | null;
   view_count: number | null;
+  like_count: number | null;
+  blurb: string | null;
+  url: string;
   author_name?: string;
   profile_picture_url?: string | null;
-  blurb?: string | null;
-  like_count?: number | null;
   edited_at?: string | null;
   distinction?: string | null;
   header_image_url?: string | null;

@@ -113,23 +113,32 @@ describe("projectGuide", () => {
     headerImageKey: "yitfaNaah1Cxyrnht6TDK7dxn2U1EtMW",
   };
 
-  it("concise projection keeps the essentials", () => {
+  it("concise projection keeps essentials, blurb, like_count, and a reference url", () => {
     const p = projectGuide(raw, "concise");
     expect(p.guide_key).toBe("nlcviusycz");
     expect(p.title).toBe("Japan: Video Game Guide");
     expect(p.author).toBe("pham2ez");
     expect(p.place_count).toBe(114);
     expect(p.view_count).toBe(186566);
-    expect(p.blurb).toBeUndefined();
-    expect(p.like_count).toBeUndefined();
+    expect(p.like_count).toBe(2624);
+    expect(p.blurb).toBe("I love Japan.");
+    expect(p.url).toBe("https://wanderlog.com/view/nlcviusycz");
+    // 'detailed' fields stay undefined in concise mode:
+    expect(p.author_name).toBeUndefined();
+    expect(p.profile_picture_url).toBeUndefined();
     expect(p.header_image_url).toBeUndefined();
+    expect(p.distinction).toBeUndefined();
+    expect(p.edited_at).toBeUndefined();
   });
 
-  it("detailed projection adds author_name, blurb, like_count, edited_at, distinction, image URLs", () => {
+  it("detailed projection adds author_name, edited_at, distinction, profile + header image URLs", () => {
     const p = projectGuide(raw, "detailed");
-    expect(p.author_name).toBe("2e");
+    // base fields still present
     expect(p.blurb).toBe("I love Japan.");
     expect(p.like_count).toBe(2624);
+    expect(p.url).toBe("https://wanderlog.com/view/nlcviusycz");
+    // detailed-only:
+    expect(p.author_name).toBe("2e");
     expect(p.edited_at).toBe("2026-05-03T02:05:37+00:00");
     expect(p.distinction).toBe("verified");
     expect(p.profile_picture_url).toMatch(/Vlp9auuKUEkRrlRR/);
@@ -286,7 +295,7 @@ describe("searchGuides (handler)", () => {
     expect(body.guides[0].guide_key).toBe("vyxcbmqruh");
   });
 
-  it("concise format omits blurb/like_count/etc on each guide", async () => {
+  it("concise format includes blurb/like_count/url but omits detailed-only fields", async () => {
     __resetCacheForTests();
     const goodGuides: GeoWithGoodGuides[] = [
       { id: 86655, name: "Vietnam", subcategory: "country", popularity: 0 },
@@ -300,6 +309,7 @@ describe("searchGuides (handler)", () => {
       user: { id: 1, username: "u", name: "U" },
       authorBlurb: "loved it",
       likeCount: 9,
+      distinction: "promotable",
     };
     const ctx = handlerCtx({
       listGoodGuides: async () => goodGuides,
@@ -307,7 +317,13 @@ describe("searchGuides (handler)", () => {
     });
     const res = await searchGuides(ctx, { geo_id: 86655, response_format: "concise" });
     const body = JSON.parse(res.content[0]!.text);
-    expect(body.guides[0].blurb).toBeUndefined();
-    expect(body.guides[0].like_count).toBeUndefined();
+    // Always-present in concise:
+    expect(body.guides[0].blurb).toBe("loved it");
+    expect(body.guides[0].like_count).toBe(9);
+    expect(body.guides[0].url).toBe("https://wanderlog.com/view/abc");
+    // Detailed-only fields remain undefined:
+    expect(body.guides[0].author_name).toBeUndefined();
+    expect(body.guides[0].distinction).toBeUndefined();
+    expect(body.guides[0].edited_at).toBeUndefined();
   });
 });

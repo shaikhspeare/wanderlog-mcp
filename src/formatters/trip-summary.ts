@@ -67,15 +67,22 @@ function renderSection(section: Section, format: ResponseFormat): string | null 
   if (section.mode === "dayPlan" && section.date) {
     return renderDaySection(section, format);
   }
-  if (!section.blocks || section.blocks.length === 0) return null;
+
+  const sectionText = section.text ? quillToPlain(section.text).trim() : "";
+  const blockLines = (section.blocks ?? [])
+    .map((b) => formatBlockLine(b, format))
+    .filter(Boolean) as string[];
+
+  if (!sectionText && blockLines.length === 0) return null;
 
   const icon = sectionIcon(section);
   const heading = section.heading?.trim() || sectionDefaultHeading(section);
-  const lines = section.blocks
-    .map((b) => formatBlockLine(b, format))
-    .filter(Boolean) as string[];
-  if (lines.length === 0) return null;
-  return `${icon} ${heading}\n${lines.map((l) => `  • ${l}`).join("\n")}`;
+  const parts = [`${icon} ${heading}`];
+  if (sectionText) parts.push(sectionText);
+  if (blockLines.length > 0) {
+    parts.push(blockLines.map((l) => `  • ${l}`).join("\n"));
+  }
+  return parts.join("\n");
 }
 
 function renderDaySection(section: Section, format: ResponseFormat): string {
