@@ -46,6 +46,11 @@ import {
   getTripUrlInputSchema,
 } from "./tools/get-trip-url.js";
 import {
+  getTripForwardingEmail,
+  getTripForwardingEmailDescription,
+  getTripForwardingEmailInputSchema,
+} from "./tools/get-trip-forwarding-email.js";
+import {
   listTrips,
   listTripsDescription,
   listTripsInputSchema,
@@ -133,7 +138,7 @@ Places without notes and times are just pins on a map. Rich places make an itine
 
 export function buildServer(ctx: AppContext): McpServer {
   const server = new McpServer(
-    { name: "wanderlog-mcp", version: "0.2.0" },
+    { name: "wanderlog-mcp", version: "0.3.0" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
@@ -165,6 +170,17 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: getTripUrlInputSchema,
     },
     requireAuth(ctx, async (args) => getTripUrl(ctx, args as Parameters<typeof getTripUrl>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_get_trip_forwarding_email",
+    {
+      title: "Get a trip's email-import address",
+      description: getTripForwardingEmailDescription,
+      inputSchema: getTripForwardingEmailInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      getTripForwardingEmail(ctx, args as Parameters<typeof getTripForwardingEmail>[1])),
   );
 
   server.registerTool(

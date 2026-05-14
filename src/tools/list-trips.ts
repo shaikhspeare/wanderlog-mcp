@@ -8,7 +8,7 @@ export const listTripsInputSchema = {
     .enum(["concise", "detailed"])
     .default("concise")
     .describe(
-      "Output verbosity. 'concise' (default) gives a one-line summary per trip; 'detailed' includes key, owner, and last-edited time.",
+      "Output verbosity. 'concise' (default) gives a one-line summary per trip; 'detailed' includes key, numeric id, owner, last-edited time, and the trip's forwarding email address.",
     ),
 };
 
@@ -20,6 +20,9 @@ the user mentions a trip by name but you don't have its trip_key yet — the key
 wanderlog_get_trip and wanderlog_search_places.
 
 Each line includes a [key: ...] suffix — extract that key for downstream tool calls.
+For the numeric trip id and the import/forwarding email address, request
+response_format='detailed'. The forwarding email can be used to import
+reservation confirmations into the trip; see also wanderlog_get_trip_forwarding_email.
 `.trim();
 
 type Args = { response_format?: "concise" | "detailed" };
