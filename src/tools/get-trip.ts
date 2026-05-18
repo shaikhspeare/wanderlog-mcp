@@ -30,8 +30,8 @@ Returns the itinerary for one Wanderlog trip: the hotels list, the "places to vi
 each day's scheduled places.
 
 Use concise format for summarizing or answering questions about a trip in natural language.
-Use detailed format when the user asks for specific info like addresses, phone numbers, or
-hotel check-in/out dates.
+Use detailed format when the user asks for specific info like addresses, phone numbers,
+hotel check-in/out dates, the numeric trip id, or the trip's forwarding email address.
 
 If you don't know the trip_key, call wanderlog_list_trips first to find it.
 `.trim();

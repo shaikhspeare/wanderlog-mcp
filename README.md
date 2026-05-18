@@ -72,6 +72,7 @@ and a ryokan in Shinjuku."
 | `wanderlog_list_trips` | List trips in your account |
 | `wanderlog_get_trip` | View a full itinerary, or filter to a single day |
 | `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
+| `wanderlog_get_trip_forwarding_email` | Get a trip's `trip+<id>@wanderlog.com` import address |
 | `wanderlog_search_places` | Find real-world places near a trip's destination |
 | `wanderlog_search_guides` | List user-written travel guides for a destination, with fallback suggestions when none exist |
 | `wanderlog_get_guide` | Read the full content of a public Wanderlog guide (sections, places, notes) |

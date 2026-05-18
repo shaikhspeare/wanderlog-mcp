@@ -33,6 +33,12 @@ describe("formatTripList", () => {
     const out = formatTripList(trips, "detailed");
     expect(out).toContain("Key:      abc");
   });
+
+  it("detailed format includes numeric id and forwarding email", () => {
+    const out = formatTripList(trips, "detailed");
+    expect(out).toContain("ID:       1");
+    expect(out).toContain("Email:    trip+1@wanderlog.com");
+  });
 });
 
 describe("formatTrip", () => {
@@ -68,6 +74,12 @@ describe("formatTrip", () => {
     expect(out).toContain("+64 3 450 1500");
     expect(out).toContain("Fernhill");
     expect(out).toContain("1566 reviews");
+  });
+
+  it("detailed format includes numeric id and forwarding email", () => {
+    const out = formatTrip(queenstownTrip, "detailed");
+    expect(out).toContain("ID: 18313259");
+    expect(out).toContain("Forwarding email: trip+18313259@wanderlog.com");
   });
 
   it("day filter returns only that day's content", () => {
