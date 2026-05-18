@@ -75,7 +75,14 @@ export class WanderlogNotFoundError extends WanderlogError {
                 "Retry this tool with a more specific place name (include the city or neighborhood).",
               ],
             }
-          : {};
+          : res === "guide"
+            ? {
+                hint: "Use wanderlog_search_guides to find a valid guide_key for a destination.",
+                followUps: [
+                  "Call wanderlog_search_guides with a destination to discover available guides.",
+                ],
+              }
+            : {};
     super(`${resource}${id} not found`, "not_found", options);
     this.name = "WanderlogNotFoundError";
   }

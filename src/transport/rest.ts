@@ -7,6 +7,8 @@ import {
 } from "../errors.js";
 import type {
   Geo,
+  GeoWithGoodGuides,
+  GuidesForGeoResponse,
   PlaceData,
   PlaceSuggestion,
   TripPlan,
@@ -174,6 +176,46 @@ export class RestClient {
       `/api/geo/autocomplete/${encodeURIComponent(query)}`,
     );
     return env.data ?? [];
+  }
+
+  async listGoodGuides(): Promise<GeoWithGoodGuides[]> {
+    const env = await this.request<Envelope<{ data?: GeoWithGoodGuides[] }>>(
+      "GET",
+      "/api/geo/geosWithGoodGuides",
+    );
+    return env.data ?? [];
+  }
+
+  async getGuidesForGeo(geoId: number): Promise<GuidesForGeoResponse> {
+    const env = await this.request<
+      Envelope<{ data?: { geoWithGoodGuides?: GuidesForGeoResponse } }>
+    >(
+      "GET",
+      `/api/tripPlans/browse/guides/${encodeURIComponent(String(geoId))}`,
+    );
+    const data = env.data?.geoWithGoodGuides;
+    if (!data) {
+      throw new WanderlogNotFoundError("Guides", String(geoId));
+    }
+    return data;
+  }
+
+  async getGuideContent(viewKey: string): Promise<TripPlan> {
+    try {
+      const env = await this.request<Envelope<{ tripPlan?: TripPlan }>>(
+        "GET",
+        `/api/tripPlans/${encodeURIComponent(viewKey)}?clientSchemaVersion=2`,
+      );
+      if (!env.tripPlan) {
+        throw new WanderlogNotFoundError("Guide", viewKey);
+      }
+      return env.tripPlan;
+    } catch (err) {
+      if (err instanceof WanderlogNotFoundError) {
+        throw new WanderlogNotFoundError("Guide", viewKey);
+      }
+      throw err;
+    }
   }
 
   async createTrip(args: {

@@ -143,6 +143,7 @@ export type Section = {
   heading: string;
   date: string | null;
   blocks: Block[];
+  text?: QuillDelta;
   placeMarkerColor?: string;
   placeMarkerIcon?: string;
 };
@@ -223,3 +224,103 @@ export type PlaceSuggestion = {
   };
   types?: string[];
 };
+
+export type GuideAuthor = {
+  id: number;
+  username: string;
+  name: string;
+  profilePictureKey?: string | null;
+  visitGeosCount?: number;
+  countriesCount?: number;
+  showProfileProBadge?: boolean;
+  isProUser?: boolean;
+};
+
+export type WanderlogGuide = {
+  id: number;
+  keyType: string;
+  key: string;
+  journalKey?: string;
+  type: string;
+  title: string;
+  user: GuideAuthor;
+  editedAt?: string;
+  isPrimary?: boolean;
+  placeCount?: number;
+  journalStopCount?: number;
+  openedAt?: string | null;
+  headerImageKey?: string | null;
+  startDate?: string | null;
+  endDate?: string | null;
+  viewCount?: number;
+  likeCount?: number;
+  commentCount?: number | null;
+  collaborators?: GuideAuthor[];
+  distinction?: string;
+  itemType?: string;
+  authorBlurb?: string;
+  isDraft?: boolean;
+  topImageKeys?: string[];
+  imageCount?: number | null;
+};
+
+export type GeoWithGoodGuides = {
+  id: number;
+  name: string;
+  stateName?: string | null;
+  countryName?: string | null;
+  depth?: number;
+  latitude?: number;
+  longitude?: number;
+  parentId?: number | null;
+  popularity?: number;
+  subcategory?: string;
+  bounds?: [number, number, number, number];
+  imageKey?: string | null;
+  countryCode?: string | null;
+};
+
+export type GuidesForGeoResponse = {
+  geo: GeoWithGoodGuides;
+  guides: WanderlogGuide[];
+};
+
+export type GuideGeoRef = {
+  geo_id: number;
+  name: string;
+  country: string | null;
+  subcategory: string | null;
+};
+
+export type GuideSummary = {
+  guide_key: string;
+  title: string;
+  author: string;
+  place_count: number | null;
+  view_count: number | null;
+  like_count: number | null;
+  blurb: string | null;
+  url: string;
+  edited_at: string | null;
+  author_name?: string;
+  profile_picture_url?: string | null;
+  distinction?: string | null;
+  header_image_url?: string | null;
+};
+
+export type GuideSearchSuccess = {
+  kind: "guides";
+  geo: GuideGeoRef;
+  alternative_geos: GuideGeoRef[];
+  returned: number;
+  total: number;
+  guides: GuideSummary[];
+};
+
+export type GuideSearchNoGuides = {
+  kind: "no_guides";
+  resolved_geo: GuideGeoRef;
+  alternative_geos_with_guides: GuideGeoRef[];
+};
+
+export type GuideSearchResult = GuideSearchSuccess | GuideSearchNoGuides;

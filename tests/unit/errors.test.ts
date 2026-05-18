@@ -79,6 +79,13 @@ describe("WanderlogNotFoundError follow-ups", () => {
     expect(msg).toContain("Widget");
     expect(msg).not.toContain("Next steps:");
   });
+
+  it("Guide not-found suggests wanderlog_search_guides", () => {
+    const msg = new WanderlogNotFoundError("Guide", "abc123").toUserMessage();
+    expect(msg).toContain("wanderlog_search_guides");
+    expect(msg).toContain("abc123");
+    expect(msg).toContain("Next steps:");
+  });
 });
 
 describe("WanderlogNetworkError follow-ups", () => {
