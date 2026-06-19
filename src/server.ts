@@ -110,6 +110,26 @@ import {
   getGuideDescription,
   getGuideInputSchema,
 } from "./tools/get-guide.js";
+import {
+  listJournal,
+  listJournalDescription,
+  listJournalInputSchema,
+} from "./tools/list-journal.js";
+import {
+  addJournal,
+  addJournalDescription,
+  addJournalInputSchema,
+} from "./tools/add-journal.js";
+import {
+  editJournal,
+  editJournalDescription,
+  editJournalInputSchema,
+} from "./tools/edit-journal.js";
+import {
+  removeJournal,
+  removeJournalDescription,
+  removeJournalInputSchema,
+} from "./tools/remove-journal.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -402,6 +422,50 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       renameDay(ctx, args as Parameters<typeof renameDay>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_list_journal",
+    {
+      title: "List journal stops in a Wanderlog trip",
+      description: listJournalDescription,
+      inputSchema: listJournalInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      listJournal(ctx, args as Parameters<typeof listJournal>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_add_journal",
+    {
+      title: "Add a journal stop to a Wanderlog trip",
+      description: addJournalDescription,
+      inputSchema: addJournalInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      addJournal(ctx, args as Parameters<typeof addJournal>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_journal",
+    {
+      title: "Edit a journal stop or summary in a Wanderlog trip",
+      description: editJournalDescription,
+      inputSchema: editJournalInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      editJournal(ctx, args as Parameters<typeof editJournal>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_journal",
+    {
+      title: "Remove a journal stop from a Wanderlog trip",
+      description: removeJournalDescription,
+      inputSchema: removeJournalInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      removeJournal(ctx, args as Parameters<typeof removeJournal>[1])),
   );
 
   return server;
