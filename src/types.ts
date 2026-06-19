@@ -148,6 +148,36 @@ export type Section = {
   placeMarkerIcon?: string;
 };
 
+/** Money sub-object on a budget expense: `{ amount, currencyCode }`. */
+export type ExpenseAmount = {
+  amount: number;
+  currencyCode: string;
+  [k: string]: unknown;
+};
+
+/**
+ * A budget expense at `trip.itinerary.budget.expenses[]`. Only the fields we
+ * read or edit are typed; the index signature preserves the many other fields
+ * Wanderlog attaches (paidByUser, splitWith, blockId, …) so edits don't drop
+ * them.
+ */
+export type Expense = {
+  id: number;
+  amount: ExpenseAmount;
+  category?: string;
+  description?: string;
+  /** Transaction date (YYYY-MM-DD). */
+  date?: string;
+  /** Trip day the expense is grouped under — this is what the budget UI shows. */
+  associatedDate?: string;
+  [k: string]: unknown;
+};
+
+export type Budget = {
+  expenses?: Expense[];
+  [k: string]: unknown;
+};
+
 export type Contributor = {
   id: number;
   username: string;
@@ -185,7 +215,7 @@ export type TripPlan = {
   itinerary: {
     sections: Section[];
     options?: unknown;
-    budget?: unknown;
+    budget?: Budget;
     journal?: unknown;
   };
   schemaVersion: number;

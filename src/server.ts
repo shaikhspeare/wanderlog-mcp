@@ -81,6 +81,21 @@ import {
   removeNoteInputSchema,
 } from "./tools/remove-note.js";
 import {
+  listExpenses,
+  listExpensesDescription,
+  listExpensesInputSchema,
+} from "./tools/list-expenses.js";
+import {
+  removeExpense,
+  removeExpenseDescription,
+  removeExpenseInputSchema,
+} from "./tools/remove-expense.js";
+import {
+  editExpense,
+  editExpenseDescription,
+  editExpenseInputSchema,
+} from "./tools/edit-expense.js";
+import {
   searchGuides,
   searchGuidesDescription,
   searchGuidesInputSchema,
@@ -286,6 +301,39 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       addExpense(ctx, args as Parameters<typeof addExpense>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_list_expenses",
+    {
+      title: "List budget expenses on a Wanderlog trip",
+      description: listExpensesDescription,
+      inputSchema: listExpensesInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      listExpenses(ctx, args as Parameters<typeof listExpenses>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_expense",
+    {
+      title: "Remove a budget expense from a Wanderlog trip",
+      description: removeExpenseDescription,
+      inputSchema: removeExpenseInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      removeExpense(ctx, args as Parameters<typeof removeExpense>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_expense",
+    {
+      title: "Edit a budget expense on a Wanderlog trip",
+      description: editExpenseDescription,
+      inputSchema: editExpenseInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      editExpense(ctx, args as Parameters<typeof editExpense>[1])),
   );
 
   server.registerTool(
