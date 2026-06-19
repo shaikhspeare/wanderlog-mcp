@@ -45,7 +45,7 @@ describe("Journal tools (live round-trip)", () => {
     }
   });
 
-  it("creates a throwaway trip with a place anchor", async () => {
+  it("creates a throwaway trip with an itinerary place", async () => {
     const result = await createTrip(ctx, {
       destination: "Tokyo",
       start_date: "2099-03-01",
@@ -56,41 +56,52 @@ describe("Journal tools (live round-trip)", () => {
     expect(result.isError).not.toBe(true);
     tripKey = /Key: (\w+)/.exec(result.content[0]!.text)?.[1];
     expect(tripKey).toBeTruthy();
-    await addPlace(ctx, { trip_key: tripKey!, place: "Tokyo Tower" });
+    const place = await addPlace(ctx, { trip_key: tripKey!, place: "Tokyo Tower" });
+    if (place.isError) throw new Error(`add_place failed: ${place.content[0]!.text}`);
   }, 30_000);
 
-  it("add_journal resolves a place and appends a stop", async () => {
+  it("add_journal reuses an itinerary place (no override needed)", async () => {
     const res = await addJournal(ctx, {
       trip_key: tripKey!,
-      place: "Senso-ji",
-      text: "Visited the temple at dawn.",
+      place: "Tokyo Tower",
+      text: "Visited the tower at dawn.",
       date: "2099-03-02",
       time: "08:30",
     });
     if (res.isError) throw new Error(`add_journal failed: ${res.content[0]!.text}`);
+    expect(res.content[0]!.text).toContain("reused a place already in your trip");
 
     const trip = await ctx.rest.getTrip(tripKey!);
-    const stop = stopByTitle(trip, "sens"); // diacritic-free substring of "Sensō-ji"
+    const stop = stopByTitle(trip, "tokyo tower");
     expect(stop).toBeDefined();
     expect(stop!.type).toBe("confirmed");
-    expect(stop!.place?.name).toMatch(/Sens/);
+    expect(stop!.place?.name).toMatch(/Tokyo Tower/);
     expect(stop!.dateTime).toBe("2099-03-02T08:30");
     expect(stop!.media).toEqual([]);
-    expect(stop!.text?.ops?.[0]?.insert).toBe("Visited the temple at dawn.");
+    expect(stop!.text?.ops?.[0]?.insert).toBe("Visited the tower at dawn.");
   }, 30_000);
+
+  it("add_journal prompts (no mutation) for a place not in the itinerary", async () => {
+    const res = await addJournal(ctx, { trip_key: tripKey!, place: "Senso-ji" });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toContain("isn't a place in");
+    // unchanged: still exactly the one Tokyo Tower stop
+    const trip = await ctx.rest.getTrip(tripKey!);
+    expect(trip.itinerary.journal?.stops ?? []).toHaveLength(1);
+  }, 20_000);
 
   it("list_journal shows the stop", async () => {
     const res = await listJournal(ctx, { trip_key: tripKey! });
     expect(res.isError).not.toBe(true);
-    expect(res.content[0]!.text).toMatch(/Sens/);
-    expect(res.content[0]!.text).toContain("Visited the temple at dawn.");
+    expect(res.content[0]!.text).toMatch(/Tokyo Tower/);
+    expect(res.content[0]!.text).toContain("Visited the tower at dawn.");
   }, 15_000);
 
   it("edit_journal changes title/text/date and summary (server-confirmed)", async () => {
     const res = await editJournal(ctx, {
       trip_key: tripKey!,
-      title: "senso", // matches "Sensō-ji" via diacritic folding
-      new_title: "Sensō-ji (sunrise)",
+      title: "tokyo tower",
+      new_title: "Tokyo Tower (sunrise)",
       new_text: "Beat the crowds before 9am.",
       new_date: "2099-03-01",
       new_summary: "Three days in Tokyo.",
@@ -100,10 +111,10 @@ describe("Journal tools (live round-trip)", () => {
     const trip = await ctx.rest.getTrip(tripKey!);
     const stop = stopByTitle(trip, "sunrise");
     expect(stop).toBeDefined();
-    expect(stop!.title).toBe("Sensō-ji (sunrise)");
+    expect(stop!.title).toBe("Tokyo Tower (sunrise)");
     expect(stop!.text?.ops?.[0]?.insert).toBe("Beat the crowds before 9am.");
     expect(stop!.dateTime).toBe("2099-03-01T08:30"); // date changed, time preserved
-    expect(stop!.place?.name).toMatch(/Sens/); // place preserved
+    expect(stop!.place?.name).toMatch(/Tokyo Tower/); // place preserved
     expect(trip.itinerary.journal?.summary).toBe("Three days in Tokyo.");
   }, 30_000);
 

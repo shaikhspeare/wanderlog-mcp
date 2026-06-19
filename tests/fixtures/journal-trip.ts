@@ -27,7 +27,13 @@ export const journalTrip: TripPlan = {
         mode: "placeList",
         heading: "Places to visit",
         date: null,
-        blocks: [],
+        blocks: [
+          {
+            id: 40001,
+            type: "place",
+            place: { name: "Ōhori Park", place_id: "ChIJohori" },
+          },
+        ],
       },
     ],
     journal: {

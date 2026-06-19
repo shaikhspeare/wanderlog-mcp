@@ -139,7 +139,47 @@ describe("listJournal", () => {
 // ---------------------------------------------------------------------------
 
 describe("addJournal", () => {
-  it("resolves a place and appends a stop, reusing the trip's tz offset", async () => {
+  const noSearch = { searchPlacesAutocomplete: async () => { throw new Error("should not search"); } };
+
+  it("reuses an existing itinerary place without searching", async () => {
+    const { ctx, submittedOps } = makeFakeContext(journalTrip, noSearch);
+    const res = await addJournal(ctx, {
+      trip_key: "journaltripkey",
+      place: "Ohori", // matches "Ōhori Park" via diacritic folding
+      text: "Cherry blossoms by the lake.",
+      date: "2026-05-31",
+    });
+    expect(res.isError).toBeUndefined();
+    expect(res.content[0]!.text).toContain("reused a place already in your trip");
+
+    const op = submittedOps[0]![0] as { p: (string | number)[]; li: Record<string, any> };
+    expect(op.p).toEqual(["itinerary", "journal", "stops", 3]); // appended after 3 existing
+    expect(op.li.type).toBe("confirmed");
+    expect(op.li.title).toBe("Ōhori Park"); // defaults to the reused place name
+    expect(op.li.place).toEqual({ name: "Ōhori Park", place_id: "ChIJohori" });
+    expect(op.li.dateTime).toBe("2026-05-31T09:00+09:00"); // offset reused from existing stops
+    expect(op.li.media).toEqual([]);
+    expect(op.li.text).toEqual({ ops: [{ insert: "Cherry blossoms by the lake." }] });
+  });
+
+  it("reuses a place from an existing journal stop", async () => {
+    const { ctx, submittedOps } = makeFakeContext(journalTrip, noSearch);
+    const res = await addJournal(ctx, { trip_key: "journaltripkey", place: "ganso" });
+    expect(res.isError).toBeUndefined();
+    const op = submittedOps[0]![0] as { li: { place: { place_id: string } } };
+    expect(op.li.place.place_id).toBe("ChIJmentaiju");
+  });
+
+  it("prompts (no mutation) when the place isn't in the trip", async () => {
+    const { ctx, submittedOps } = makeFakeContext(journalTrip, noSearch);
+    const res = await addJournal(ctx, { trip_key: "journaltripkey", place: "Canal City" });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toContain("isn't a place in");
+    expect(res.content[0]!.text).toContain("allow_new_place");
+    expect(submittedOps).toHaveLength(0);
+  });
+
+  it("adds a new place when allow_new_place is set", async () => {
     const { ctx, submittedOps } = makeFakeContext(journalTrip, {
       searchPlacesAutocomplete: async () => [{ place_id: "ChIJcanal", description: "Canal City" }],
       getPlaceDetails: async (id) => ({ name: "Canal City Hakata", place_id: id }),
@@ -147,29 +187,35 @@ describe("addJournal", () => {
     const res = await addJournal(ctx, {
       trip_key: "journaltripkey",
       place: "Canal City",
-      text: "Shopping and ramen stadium.",
+      allow_new_place: true,
       date: "2026-05-31",
     });
     expect(res.isError).toBeUndefined();
-    expect(res.content[0]!.text).toContain("Canal City Hakata");
-
-    const op = submittedOps[0]![0] as { p: (string | number)[]; li: Record<string, any> };
-    expect(op.p).toEqual(["itinerary", "journal", "stops", 3]); // appended after 3 existing
-    expect(op.li.type).toBe("confirmed");
-    expect(op.li.title).toBe("Canal City Hakata"); // defaults to place name
-    expect(op.li.dateTime).toBe("2026-05-31T09:00+09:00"); // offset reused from existing stops
+    expect(res.content[0]!.text).toContain("new place");
+    const op = submittedOps[0]![0] as { li: { place: any; dateTime: string } };
     expect(op.li.place).toEqual({ name: "Canal City Hakata", place_id: "ChIJcanal" });
-    expect(op.li.media).toEqual([]);
-    expect(op.li.text).toEqual({ ops: [{ insert: "Shopping and ramen stadium." }] });
+    expect(op.li.dateTime).toBe("2026-05-31T09:00+09:00");
   });
 
-  it("errors when the place reference matches nothing", async () => {
+  it("errors when the override search finds nothing", async () => {
     const { ctx, submittedOps } = makeFakeContext(journalTrip, {
       searchPlacesAutocomplete: async () => [],
     });
-    const res = await addJournal(ctx, { trip_key: "journaltripkey", place: "nowhere_xyz" });
+    const res = await addJournal(ctx, {
+      trip_key: "journaltripkey",
+      place: "nowhere_xyz",
+      allow_new_place: true,
+    });
     expect(res.isError).toBe(true);
     expect(res.content[0]!.text).toContain("No place found");
+    expect(submittedOps).toHaveLength(0);
+  });
+
+  it("is ambiguous when multiple trip places match", async () => {
+    const { ctx, submittedOps } = makeFakeContext(journalTrip);
+    const res = await addJournal(ctx, { trip_key: "journaltripkey", place: "tai" });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toContain("matches 2 places");
     expect(submittedOps).toHaveLength(0);
   });
 });

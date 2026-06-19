@@ -1,4 +1,5 @@
-import type { JournalStop, QuillDelta, TripPlan } from "../types.js";
+import type { JournalStop, PlaceData, QuillDelta, TripPlan } from "../types.js";
+import { isPlaceBlock } from "../types.js";
 
 /** A located journal stop: its index in the stops array plus the stop itself. */
 export type StopMatch = {
@@ -53,6 +54,29 @@ export function findStopMatches(trip: TripPlan, filters: StopFilters): StopMatch
     if (filters.date && stopDate(stop) !== filters.date) return false;
     return true;
   });
+}
+
+/**
+ * Finds places already referenced by the trip — both itinerary place blocks and
+ * existing journal-stop places — whose name matches the query (diacritic- and
+ * case-insensitive substring). Deduplicated by place_id. Lets add_journal reuse
+ * a place the user already has rather than embedding a fresh search result.
+ */
+export function findTripPlaces(trip: TripPlan, query: string): PlaceData[] {
+  const q = fold(query);
+  const byKey = new Map<string, PlaceData>();
+  const collect = (place: PlaceData | undefined) => {
+    if (!place?.name) return;
+    const key = place.place_id || place.name;
+    if (!byKey.has(key)) byKey.set(key, place);
+  };
+  for (const section of trip.itinerary.sections) {
+    for (const block of section.blocks) {
+      if (isPlaceBlock(block)) collect(block.place);
+    }
+  }
+  for (const { stop } of getJournalStops(trip)) collect(stop.place);
+  return [...byKey.values()].filter((p) => fold(p.name).includes(q));
 }
 
 function preview(text: string): string {
