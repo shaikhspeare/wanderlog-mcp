@@ -127,6 +127,7 @@ export function buildPlaceBlock(
     };
     startTime?: string;
     endTime?: string;
+    imageKeys?: string[];
   } = {},
 ): Block {
   const base: Record<string, unknown> = {
@@ -140,6 +141,13 @@ export function buildPlaceBlock(
     travelMode: null,
     attachments: [],
   };
+  // The mobile apps render the place photo from `imageKeys` stored on the
+  // block, not from the place's Google `photo_urls`. Without this, MCP-added
+  // places show no image on iOS / iPadOS (the web app fetches photos live, so
+  // it is unaffected). Only set the key when we actually have images.
+  if (extras.imageKeys && extras.imageKeys.length > 0) {
+    base.imageKeys = extras.imageKeys;
+  }
   if (extras.hotel) {
     base.hotel = {
       checkIn: extras.hotel.checkIn,

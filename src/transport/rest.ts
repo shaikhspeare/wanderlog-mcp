@@ -168,6 +168,21 @@ export class RestClient {
     return env.data;
   }
 
+  /**
+   * Fetches Wanderlog place metadata (including the hosted `imageKeys` used by
+   * the mobile apps) for one place. The native "add place" flow calls this
+   * endpoint and stores the returned imageKeys on the itinerary block; the
+   * getPlaceDetails endpoint only returns Google `photo_urls`, which the iOS /
+   * iPadOS apps do not render. Returns an empty array if none are available.
+   */
+  async getPlaceImageKeys(placeId: string): Promise<string[]> {
+    const env = await this.request<
+      Envelope<{ data?: Array<{ placeId?: string; imageKeys?: string[] }> }>
+    >("GET", `/api/places/metadata?placeIds=${encodeURIComponent(placeId)}`);
+    const entry = env.data?.find((e) => e.placeId === placeId) ?? env.data?.[0];
+    return entry?.imageKeys ?? [];
+  }
+
   async geoAutocomplete(
     query: string,
   ): Promise<Array<{ id: number; name: string; countryName?: string; stateName?: string; latitude: number; longitude: number; popularity?: number }>> {

@@ -80,8 +80,12 @@ export async function addHotel(
       );
     }
     const detail: PlaceData = await ctx.rest.getPlaceDetails(predictions[0]!.place_id);
+    // Fetch the Wanderlog-hosted imageKeys so the hotel shows a photo in the
+    // iOS / iPadOS apps (they render from block.imageKeys, not photo_urls).
+    const imageKeys = await ctx.rest.getPlaceImageKeys(predictions[0]!.place_id);
 
     const block = buildPlaceBlock(detail, userId, {
+      imageKeys,
       hotel: {
         checkIn: args.check_in,
         checkOut: args.check_out,

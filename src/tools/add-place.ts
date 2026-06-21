@@ -135,10 +135,13 @@ export async function addPlace(
     }
     const topPrediction = predictions[0]!;
     const detail: PlaceData = await ctx.rest.getPlaceDetails(topPrediction.place_id);
+    // Fetch the Wanderlog-hosted imageKeys so the place shows a photo in the
+    // iOS / iPadOS apps (they render from block.imageKeys, not photo_urls).
+    const imageKeys = await ctx.rest.getPlaceImageKeys(topPrediction.place_id);
 
     // Build the block WITHOUT timing — timing is set via separate oi ops
     // to match the Wanderlog UI's two-step pattern (insert block, then set fields).
-    const block = buildPlaceBlock(detail, userId);
+    const block = buildPlaceBlock(detail, userId, { imageKeys });
     const section = trip.itinerary.sections[targetIndex]!;
     const insertIndex = section.blocks.length;
     const blockPath = ["itinerary", "sections", targetIndex, "blocks", insertIndex];
