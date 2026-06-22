@@ -32,6 +32,7 @@
   "homepage": "https://github.com/shaikhspeare/wanderlog-mcp#readme",
   "scripts": {
     "build": "tsc",
+    "prepare": "tsc",
     "dev": "tsx --env-file=.env src/index.ts",
     "probe": "node --env-file=.env probe.mjs",
     "test": "vitest run tests/unit",
