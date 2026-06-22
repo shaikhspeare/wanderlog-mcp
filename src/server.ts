@@ -110,6 +110,16 @@ import {
   getGuideDescription,
   getGuideInputSchema,
 } from "./tools/get-guide.js";
+import {
+  addSection,
+  addSectionDescription,
+  addSectionInputSchema,
+} from "./tools/add-section.js";
+import {
+  updateSection,
+  updateSectionDescription,
+  updateSectionInputSchema,
+} from "./tools/update-section.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -402,6 +412,28 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       renameDay(ctx, args as Parameters<typeof renameDay>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_add_section",
+    {
+      title: "Add a custom section to a Wanderlog trip",
+      description: addSectionDescription,
+      inputSchema: addSectionInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      addSection(ctx, args as Parameters<typeof addSection>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_update_section",
+    {
+      title: "Rename a custom section in a Wanderlog trip",
+      description: updateSectionDescription,
+      inputSchema: updateSectionInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      updateSection(ctx, args as Parameters<typeof updateSection>[1])),
   );
 
   return server;
