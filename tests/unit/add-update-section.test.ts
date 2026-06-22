@@ -166,3 +166,32 @@ describe("applyOp – section heading od+oi", () => {
     );
   });
 });
+
+// ---------------------------------------------------------------------------
+// applyOp round-trip: section list delete (ld)
+// ---------------------------------------------------------------------------
+
+describe("applyOp – section ld", () => {
+  it("removes a section and shifts remaining sections", () => {
+    const doc = fresh(checklistTrip);
+    const sectionCount = doc.itinerary.sections.length;
+    // Delete the section at index 0 ("Notes")
+    const target = doc.itinerary.sections[0]!;
+    const ops: Json0Op[] = [
+      { p: ["itinerary", "sections", 0], ld: target },
+    ];
+    const next = applyOp(doc, ops);
+    expect(next.itinerary.sections).toHaveLength(sectionCount - 1);
+    // Former index 1 ("Places to visit") is now at index 0
+    expect((next.itinerary.sections[0]! as Section).heading).toBe("Places to visit");
+  });
+
+  it("throws when ld value does not match the existing section", () => {
+    const doc = fresh(checklistTrip);
+    const staleSection = { ...doc.itinerary.sections[0]!, heading: "Wrong heading" };
+    const ops: Json0Op[] = [
+      { p: ["itinerary", "sections", 0], ld: staleSection },
+    ];
+    expect(() => applyOp(doc, ops)).toThrow();
+  });
+});
