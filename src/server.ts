@@ -120,6 +120,11 @@ import {
   updateSectionDescription,
   updateSectionInputSchema,
 } from "./tools/update-section.js";
+import {
+  deleteSection,
+  deleteSectionDescription,
+  deleteSectionInputSchema,
+} from "./tools/delete-section.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -434,6 +439,17 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       updateSection(ctx, args as Parameters<typeof updateSection>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_delete_section",
+    {
+      title: "Delete a custom section from a Wanderlog trip",
+      description: deleteSectionDescription,
+      inputSchema: deleteSectionInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      deleteSection(ctx, args as Parameters<typeof deleteSection>[1])),
   );
 
   return server;
