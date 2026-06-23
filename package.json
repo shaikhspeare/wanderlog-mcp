@@ -40,7 +40,8 @@
     "test:all": "npm run test && npm run test:integration",
     "typecheck": "tsc --noEmit",
     "eval": "node --env-file=.env --import tsx evals/run.ts",
-    "start:http": "node --env-file=.env dist/http.js"
+    "start:http": "node --env-file=.env dist/http.js",
+    "lint": "eslint ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -49,10 +50,14 @@
   },
   "devDependencies": {
     "@anthropic-ai/sdk": "^0.40.0",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
+    "eslint": "^10.5.0",
+    "globals": "^17.7.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
+    "typescript-eslint": "^8.62.0",
     "vitest": "^2.1.8"
   }
 }
