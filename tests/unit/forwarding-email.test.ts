@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { tripForwardingEmail } from "../../src/forwarding-email.ts";
+import { tripForwardingEmail } from "../../src/forwarding-email.js";
 
 describe("tripForwardingEmail", () => {
   it("uses the trip+<id>@wanderlog.com pattern", () => {
