@@ -5,51 +5,19 @@ import {
   addChecklistDescription,
   addChecklistInputSchema,
 } from "./tools/add-checklist.js";
-import {
-  addExpense,
-  addExpenseDescription,
-  addExpenseInputSchema,
-} from "./tools/add-expense.js";
+import { addExpense, addExpenseDescription, addExpenseInputSchema } from "./tools/add-expense.js";
 import {
   annotatePlace,
   annotatePlaceDescription,
   annotatePlaceInputSchema,
 } from "./tools/annotate-place.js";
-import {
-  addHotel,
-  addHotelDescription,
-  addHotelInputSchema,
-} from "./tools/add-hotel.js";
-import {
-  addNote,
-  addNoteDescription,
-  addNoteInputSchema,
-} from "./tools/add-note.js";
-import {
-  addPlace,
-  addPlaceDescription,
-  addPlaceInputSchema,
-} from "./tools/add-place.js";
-import {
-  createTrip,
-  createTripDescription,
-  createTripInputSchema,
-} from "./tools/create-trip.js";
-import {
-  getTrip,
-  getTripDescription,
-  getTripInputSchema,
-} from "./tools/get-trip.js";
-import {
-  getTripUrl,
-  getTripUrlDescription,
-  getTripUrlInputSchema,
-} from "./tools/get-trip-url.js";
-import {
-  listTrips,
-  listTripsDescription,
-  listTripsInputSchema,
-} from "./tools/list-trips.js";
+import { addHotel, addHotelDescription, addHotelInputSchema } from "./tools/add-hotel.js";
+import { addNote, addNoteDescription, addNoteInputSchema } from "./tools/add-note.js";
+import { addPlace, addPlaceDescription, addPlaceInputSchema } from "./tools/add-place.js";
+import { createTrip, createTripDescription, createTripInputSchema } from "./tools/create-trip.js";
+import { getTrip, getTripDescription, getTripInputSchema } from "./tools/get-trip.js";
+import { getTripUrl, getTripUrlDescription, getTripUrlInputSchema } from "./tools/get-trip-url.js";
+import { listTrips, listTripsDescription, listTripsInputSchema } from "./tools/list-trips.js";
 import {
   removePlace,
   removePlaceDescription,
@@ -65,31 +33,15 @@ import {
   updateTripDatesDescription,
   updateTripDatesInputSchema,
 } from "./tools/update-trip-dates.js";
-import {
-  renameDay,
-  renameDayDescription,
-  renameDayInputSchema,
-} from "./tools/rename-day.js";
-import {
-  editNote,
-  editNoteDescription,
-  editNoteInputSchema,
-} from "./tools/edit-note.js";
-import {
-  removeNote,
-  removeNoteDescription,
-  removeNoteInputSchema,
-} from "./tools/remove-note.js";
+import { renameDay, renameDayDescription, renameDayInputSchema } from "./tools/rename-day.js";
+import { editNote, editNoteDescription, editNoteInputSchema } from "./tools/edit-note.js";
+import { removeNote, removeNoteDescription, removeNoteInputSchema } from "./tools/remove-note.js";
 import {
   searchGuides,
   searchGuidesDescription,
   searchGuidesInputSchema,
 } from "./tools/search-guides.js";
-import {
-  getGuide,
-  getGuideDescription,
-  getGuideInputSchema,
-} from "./tools/get-guide.js";
+import { getGuide, getGuideDescription, getGuideInputSchema } from "./tools/get-guide.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -103,7 +55,9 @@ const AUTH_ERROR_RESPONSE = {
 
 function requireAuth(
   ctx: AppContext,
-  handler: (args: Record<string, unknown>) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>,
+  handler: (
+    args: Record<string, unknown>,
+  ) => Promise<{ content: { type: "text"; text: string }[]; isError?: boolean }>,
 ) {
   return async (args: Record<string, unknown>) => {
     if (!ctx.authenticated) return AUTH_ERROR_RESPONSE;
@@ -199,9 +153,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: searchGuidesDescription,
       inputSchema: searchGuidesInputSchema,
     },
-    requireAuth(ctx, async (args) =>
-      searchGuides(ctx, args as Parameters<typeof searchGuides>[1]),
-    ),
+    requireAuth(ctx, async (args) => searchGuides(ctx, args as Parameters<typeof searchGuides>[1])),
   );
 
   server.registerTool(
@@ -211,9 +163,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: getGuideDescription,
       inputSchema: getGuideInputSchema,
     },
-    requireAuth(ctx, async (args) =>
-      getGuide(ctx, args as Parameters<typeof getGuide>[1]),
-    ),
+    requireAuth(ctx, async (args) => getGuide(ctx, args as Parameters<typeof getGuide>[1])),
   );
 
   server.registerTool(
@@ -274,7 +224,8 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: annotatePlaceInputSchema,
     },
     requireAuth(ctx, async (args) =>
-      annotatePlace(ctx, args as Parameters<typeof annotatePlace>[1])),
+      annotatePlace(ctx, args as Parameters<typeof annotatePlace>[1]),
+    ),
   );
 
   server.registerTool(
@@ -284,8 +235,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: addExpenseDescription,
       inputSchema: addExpenseInputSchema,
     },
-    requireAuth(ctx, async (args) =>
-      addExpense(ctx, args as Parameters<typeof addExpense>[1])),
+    requireAuth(ctx, async (args) => addExpense(ctx, args as Parameters<typeof addExpense>[1])),
   );
 
   server.registerTool(
@@ -326,7 +276,8 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: updateTripDatesInputSchema,
     },
     requireAuth(ctx, async (args) =>
-      updateTripDates(ctx, args as Parameters<typeof updateTripDates>[1])),
+      updateTripDates(ctx, args as Parameters<typeof updateTripDates>[1]),
+    ),
   );
 
   server.registerTool(
@@ -336,8 +287,7 @@ export function buildServer(ctx: AppContext): McpServer {
       description: renameDayDescription,
       inputSchema: renameDayInputSchema,
     },
-    requireAuth(ctx, async (args) =>
-      renameDay(ctx, args as Parameters<typeof renameDay>[1])),
+    requireAuth(ctx, async (args) => renameDay(ctx, args as Parameters<typeof renameDay>[1])),
   );
 
   return server;

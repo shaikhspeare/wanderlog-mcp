@@ -55,10 +55,7 @@ describe("formatTrip with mixed block types (regression)", () => {
 
 describe("formatBlockLine defensive handling", () => {
   it("returns null for a place block with no place data", () => {
-    const result = formatBlockLine(
-      { id: 1, type: "place", place: undefined } as any,
-      "concise",
-    );
+    const result = formatBlockLine({ id: 1, type: "place", place: undefined } as any, "concise");
     expect(result).toBeNull();
   });
 
@@ -72,7 +69,12 @@ describe("formatBlockLine defensive handling", () => {
 
   it("returns a malformed label for any garbage block", () => {
     const result = formatBlockLine(
-      { type: "place", get place() { throw new Error("boom"); } } as any,
+      {
+        type: "place",
+        get place() {
+          throw new Error("boom");
+        },
+      } as any,
       "concise",
     );
     expect(result).toContain("malformed");

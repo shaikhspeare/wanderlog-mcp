@@ -9,7 +9,7 @@ An MCP server that lets Claude (or any MCP-compatible agent) view and build [Wan
 
 Instead of clicking through the Wanderlog UI to plan a trip, you just ask:
 
-> *"Create a 14-day Japan Golden Route trip — Tokyo, Hakone, Kyoto, Nara, and Osaka."*
+> _"Create a 14-day Japan Golden Route trip — Tokyo, Hakone, Kyoto, Nara, and Osaka."_
 
 The agent calls the tools, interleaves places and notes for each day, adds hotel blocks and checklists, and you end up with a fully populated Wanderlog trip in a few minutes.
 
@@ -48,55 +48,63 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 ```
 "What trips do I have in Wanderlog?"
 ```
+
 ```
 "Create a 7-day itinerary for Lisbon starting June 1 — include restaurants, day trips,
 and a hotel near the waterfront."
 ```
+
 ```
 "Add a day trip to Sintra on day 3 of my Lisbon trip."
 ```
+
 ```
 "I'm spending 5 days in Tokyo — build me a full itinerary with museum visits, ramen spots,
 and a ryokan in Shinjuku."
 ```
+
 ```
 "Look at my Barcelona trip and add practical notes for getting between each place."
 ```
+
 ```
 "Add a pre-trip checklist to my Paris trip — visa, currency, offline maps, travel insurance."
 ```
+
 ```
 "Move my Rome trip back by two weeks."
 ```
+
 ```
 "Give me the shareable link to my Kyoto itinerary."
 ```
+
 ```
 "Remove the Colosseum from day 2 of my Rome trip."
 ```
 
 ## Tools
 
-| Tool | What it does |
-|---|---|
-| `wanderlog_list_trips` | List trips in your account |
-| `wanderlog_get_trip` | View a full itinerary, or filter to a single day |
-| `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
-| `wanderlog_search_places` | Find real-world places near a trip's destination |
-| `wanderlog_search_guides` | List user-written travel guides for a destination, with fallback suggestions when none exist |
-| `wanderlog_get_guide` | Read the full content of a public Wanderlog guide (sections, places, notes) |
-| `wanderlog_create_trip` | Create a new trip with destination + date range |
-| `wanderlog_add_place` | Add a place to a specific day or general list |
-| `wanderlog_add_note` | Add a note (transit tips, booking info, local advice) |
-| `wanderlog_edit_note` | Find-and-replace text in notes, place annotations, and checklists |
-| `wanderlog_remove_note` | Remove a standalone note block by natural-language reference |
-| `wanderlog_add_hotel` | Add a hotel booking with check-in/check-out dates |
-| `wanderlog_add_checklist` | Add a pre-trip or per-day checklist |
-| `wanderlog_add_expense` | Log a budget expense (amount, category, currency) linked to a place |
-| `wanderlog_annotate_place` | Update an existing place with a note, start/end time, or both |
-| `wanderlog_remove_place` | Remove a place by natural-language reference |
-| `wanderlog_update_trip_dates` | Change a trip's date range |
-| `wanderlog_rename_day` | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`) |
+| Tool                          | What it does                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| `wanderlog_list_trips`        | List trips in your account                                                                   |
+| `wanderlog_get_trip`          | View a full itinerary, or filter to a single day                                             |
+| `wanderlog_get_trip_url`      | Get a shareable wanderlog.com link                                                           |
+| `wanderlog_search_places`     | Find real-world places near a trip's destination                                             |
+| `wanderlog_search_guides`     | List user-written travel guides for a destination, with fallback suggestions when none exist |
+| `wanderlog_get_guide`         | Read the full content of a public Wanderlog guide (sections, places, notes)                  |
+| `wanderlog_create_trip`       | Create a new trip with destination + date range                                              |
+| `wanderlog_add_place`         | Add a place to a specific day or general list                                                |
+| `wanderlog_add_note`          | Add a note (transit tips, booking info, local advice)                                        |
+| `wanderlog_edit_note`         | Find-and-replace text in notes, place annotations, and checklists                            |
+| `wanderlog_remove_note`       | Remove a standalone note block by natural-language reference                                 |
+| `wanderlog_add_hotel`         | Add a hotel booking with check-in/check-out dates                                            |
+| `wanderlog_add_checklist`     | Add a pre-trip or per-day checklist                                                          |
+| `wanderlog_add_expense`       | Log a budget expense (amount, category, currency) linked to a place                          |
+| `wanderlog_annotate_place`    | Update an existing place with a note, start/end time, or both                                |
+| `wanderlog_remove_place`      | Remove a place by natural-language reference                                                 |
+| `wanderlog_update_trip_dates` | Change a trip's date range                                                                   |
+| `wanderlog_rename_day`        | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`)                   |
 
 ## Prerequisites
 
@@ -225,7 +233,7 @@ npx @smithery/cli install wanderlog-mcp --client claude
 
 ### Step 3 — Verify
 
-Ask your agent: *"What trips do I have in Wanderlog?"*
+Ask your agent: _"What trips do I have in Wanderlog?"_
 
 It should call `wanderlog_list_trips` and return your account's trips. If it fails, see [Troubleshooting](#troubleshooting) below.
 

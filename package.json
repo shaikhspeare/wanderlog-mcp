@@ -40,7 +40,9 @@
     "test:all": "npm run test && npm run test:integration",
     "typecheck": "tsc --noEmit",
     "eval": "node --env-file=.env --import tsx evals/run.ts",
-    "start:http": "node --env-file=.env dist/http.js"
+    "start:http": "node --env-file=.env dist/http.js",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0",
@@ -51,6 +53,7 @@
     "@anthropic-ai/sdk": "^0.40.0",
     "@types/node": "^22.10.2",
     "@types/ws": "^8.5.13",
+    "prettier": "^3.8.4",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
     "vitest": "^2.1.8"

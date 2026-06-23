@@ -42,7 +42,6 @@ type Args = {
   response_format?: "concise" | "detailed";
 };
 
-
 export async function searchPlaces(
   ctx: AppContext,
   args: Args,
@@ -87,10 +86,7 @@ export async function searchPlaces(
   }
 }
 
-function formatPredictions(
-  predictions: PlaceSuggestion[],
-  format: "concise" | "detailed",
-): string {
+function formatPredictions(predictions: PlaceSuggestion[], format: "concise" | "detailed"): string {
   const top = predictions.slice(0, 8);
   if (format === "concise") {
     return top

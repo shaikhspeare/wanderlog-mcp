@@ -7,11 +7,7 @@ import type {
   GuidesForGeoResponse,
   WanderlogGuide,
 } from "../types.js";
-import {
-  WanderlogError,
-  WanderlogNotFoundError,
-  WanderlogValidationError,
-} from "../errors.js";
+import { WanderlogError, WanderlogNotFoundError, WanderlogValidationError } from "../errors.js";
 
 export const searchGuidesInputSchema = {
   destination: z
@@ -26,9 +22,7 @@ export const searchGuidesInputSchema = {
     .int()
     .positive()
     .optional()
-    .describe(
-      "Explicit Wanderlog geo id (from a prior response's 'geo' or 'alternative_geos').",
-    ),
+    .describe("Explicit Wanderlog geo id (from a prior response's 'geo' or 'alternative_geos')."),
   response_format: z
     .enum(["concise", "detailed"])
     .default("concise")
@@ -63,9 +57,7 @@ export function validateArgs(args: SearchGuidesArgs): SearchGuidesArgs & {
     Boolean,
   ).length;
   if (modesSet !== 1) {
-    throw new WanderlogValidationError(
-      "Pass exactly one of destination or geo_id.",
-    );
+    throw new WanderlogValidationError("Pass exactly one of destination or geo_id.");
   }
   return { ...args, response_format: args.response_format ?? "concise" };
 }
@@ -101,9 +93,7 @@ export async function resolveGeo(
       },
     );
   }
-  const ranked = [...candidates].sort(
-    (a, b) => (b.popularity ?? 0) - (a.popularity ?? 0),
-  );
+  const ranked = [...candidates].sort((a, b) => (b.popularity ?? 0) - (a.popularity ?? 0));
   const top = ranked[0]!;
   const alternatives = ranked.slice(1, 3).map((c) => ({
     geo_id: c.id,
@@ -144,10 +134,7 @@ function imageUrl(key: string | null | undefined): string | null {
   return key ? `${IMAGE_BASE}/${key}` : null;
 }
 
-export function projectGuide(
-  g: WanderlogGuide,
-  format: "concise" | "detailed",
-): GuideSummary {
+export function projectGuide(g: WanderlogGuide, format: "concise" | "detailed"): GuideSummary {
   const base: GuideSummary = {
     guide_key: g.key,
     title: g.title,
@@ -208,9 +195,7 @@ export async function searchGuides(
       return { content: [{ type: "text", text: JSON.stringify(body, null, 2) }] };
     }
 
-    const projected = guidesResp.guides.map((g) =>
-      projectGuide(g, norm.response_format),
-    );
+    const projected = guidesResp.guides.map((g) => projectGuide(g, norm.response_format));
     const body = {
       kind: "guides" as const,
       geo: geoRef(guidesResp.geo),

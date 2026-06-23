@@ -14,17 +14,13 @@ import type {
 
 export type ResponseFormat = "concise" | "detailed";
 
-export function formatTripList(
-  trips: TripPlanSummary[],
-  format: ResponseFormat,
-): string {
+export function formatTripList(trips: TripPlanSummary[], format: ResponseFormat): string {
   if (trips.length === 0) return "No trips found in this account.";
 
   if (format === "concise") {
     return trips
       .map((t) => {
-        const dates =
-          t.startDate && t.endDate ? ` · ${t.startDate} → ${t.endDate}` : "";
+        const dates = t.startDate && t.endDate ? ` · ${t.startDate} → ${t.endDate}` : "";
         const places = t.placeCount != null ? ` · ${t.placeCount} places` : "";
         return `• ${t.title}${dates}${places} [key: ${t.key}]`;
       })
@@ -46,11 +42,7 @@ export function formatTripList(
     .join("\n\n");
 }
 
-export function formatTrip(
-  trip: TripPlan,
-  format: ResponseFormat,
-  dayFilter?: Section,
-): string {
+export function formatTrip(trip: TripPlan, format: ResponseFormat, dayFilter?: Section): string {
   if (dayFilter) return formatDay(trip, dayFilter, format);
 
   const parts: string[] = [formatTripHeader(trip, format)];
@@ -90,9 +82,7 @@ function renderDaySection(section: Section, format: ResponseFormat): string {
   if (section.blocks.length === 0) {
     return `📅 ${label}\n  (no plans)`;
   }
-  const lines = section.blocks
-    .map((b) => formatBlockLine(b, format))
-    .filter(Boolean) as string[];
+  const lines = section.blocks.map((b) => formatBlockLine(b, format)).filter(Boolean) as string[];
   return `📅 ${label}\n${lines.map((l) => `  • ${l}`).join("\n")}`;
 }
 
@@ -135,19 +125,13 @@ function formatTripHeader(trip: TripPlan, format: ResponseFormat): string {
   return extras.join("\n");
 }
 
-function formatDay(
-  trip: TripPlan,
-  section: Section,
-  format: ResponseFormat,
-): string {
+function formatDay(trip: TripPlan, section: Section, format: ResponseFormat): string {
   const label = formatDayLabel(section);
   const header = `${trip.title} — ${label}`;
   if (section.blocks.length === 0) {
     return `${header}\n(no plans for this day yet)`;
   }
-  const lines = section.blocks
-    .map((b) => formatBlockLine(b, format))
-    .filter(Boolean) as string[];
+  const lines = section.blocks.map((b) => formatBlockLine(b, format)).filter(Boolean) as string[];
   return `${header}\n${lines.map((l) => `• ${l}`).join("\n")}`;
 }
 
@@ -205,8 +189,7 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
   if (p.international_phone_number) parts.push(p.international_phone_number);
   if (block.hotel?.checkIn)
     parts.push(`check-in ${block.hotel.checkIn} → check-out ${block.hotel.checkOut}`);
-  if (block.hotel?.confirmationNumber)
-    parts.push(`conf. ${block.hotel.confirmationNumber}`);
+  if (block.hotel?.confirmationNumber) parts.push(`conf. ${block.hotel.confirmationNumber}`);
   if (hasNote) {
     parts.push(`📝 ${inlineNote}`);
   }
@@ -232,13 +215,11 @@ function formatChecklistBlock(block: ChecklistBlock, format: ResponseFormat): st
 
   if (format === "concise") {
     const checked = items.filter((i) => i.checked).length;
-    const itemPreviews = items
-      .slice(0, 5)
-      .map((i) => {
-        const mark = i.checked ? "[x]" : "[ ]";
-        const text = quillToPlain(i.text).replace(/\s+/g, " ").trim();
-        return `${mark} ${text || "(empty)"}`;
-      });
+    const itemPreviews = items.slice(0, 5).map((i) => {
+      const mark = i.checked ? "[x]" : "[ ]";
+      const text = quillToPlain(i.text).replace(/\s+/g, " ").trim();
+      return `${mark} ${text || "(empty)"}`;
+    });
     const suffix = items.length > 5 ? ` (+${items.length - 5} more)` : "";
     const progress = items.length > 0 ? ` [${checked}/${items.length}]` : "";
     return `☑ ${titlePrefix}${itemPreviews.join(", ")}${suffix}${progress}`;
@@ -315,9 +296,7 @@ function formatTime(iso: string): string {
 /** Extract plain text from a Quill Delta `{ops: [{insert: "..."}]}`. */
 function quillToPlain(delta: QuillDelta | undefined): string {
   if (!delta?.ops) return "";
-  return delta.ops
-    .map((op) => (typeof op.insert === "string" ? op.insert : ""))
-    .join("");
+  return delta.ops.map((op) => (typeof op.insert === "string" ? op.insert : "")).join("");
 }
 
 function formatDayLabel(section: Section): string {

@@ -8,9 +8,7 @@ export const getTripInputSchema = {
   trip_key: z
     .string()
     .min(1)
-    .describe(
-      "The unique trip key from wanderlog_list_trips (e.g. 'vzyrsyhgxvonvxcz'). Required.",
-    ),
+    .describe("The unique trip key from wanderlog_list_trips (e.g. 'vzyrsyhgxvonvxcz'). Required."),
   day: z
     .string()
     .optional()

@@ -41,9 +41,7 @@ describe("resolveDay", () => {
   });
 
   it("throws with range info for day 9 on a 6-day trip", () => {
-    expect(() => resolveDay(queenstownTrip, "day 9")).toThrow(
-      WanderlogValidationError,
-    );
+    expect(() => resolveDay(queenstownTrip, "day 9")).toThrow(WanderlogValidationError);
     try {
       resolveDay(queenstownTrip, "day 9");
     } catch (err) {
@@ -55,21 +53,15 @@ describe("resolveDay", () => {
   });
 
   it("throws for a date outside the trip range", () => {
-    expect(() => resolveDay(queenstownTrip, "2026-05-15")).toThrow(
-      WanderlogValidationError,
-    );
+    expect(() => resolveDay(queenstownTrip, "2026-05-15")).toThrow(WanderlogValidationError);
   });
 
   it("throws for month/day outside trip", () => {
-    expect(() => resolveDay(queenstownTrip, "June 1")).toThrow(
-      WanderlogValidationError,
-    );
+    expect(() => resolveDay(queenstownTrip, "June 1")).toThrow(WanderlogValidationError);
   });
 
   it("throws for unknown month name", () => {
-    expect(() => resolveDay(queenstownTrip, "Smarch 4")).toThrow(
-      WanderlogValidationError,
-    );
+    expect(() => resolveDay(queenstownTrip, "Smarch 4")).toThrow(WanderlogValidationError);
   });
 
   it("throws for gibberish input", () => {

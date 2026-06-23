@@ -14,9 +14,7 @@ export const getGuideInputSchema = {
   day: z
     .string()
     .optional()
-    .describe(
-      "Optional day filter — pass a day heading or date to scope the output to one day.",
-    ),
+    .describe("Optional day filter — pass a day heading or date to scope the output to one day."),
   response_format: z
     .enum(["concise", "detailed"])
     .default("concise")

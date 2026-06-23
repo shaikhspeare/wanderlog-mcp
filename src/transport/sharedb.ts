@@ -150,9 +150,7 @@ export class ShareDBClient extends EventEmitter {
         const wasSubscribed = this.subscribed;
         this.handshakeComplete = false;
         this.subscribed = false;
-        this.failAllPending(
-          new WanderlogError("WebSocket closed", "ws_closed"),
-        );
+        this.failAllPending(new WanderlogError("WebSocket closed", "ws_closed"));
         this.emit("closed", code);
         if (!this.closedByUser && code !== 1000) {
           this.scheduleReconnect(wasSubscribed);
@@ -165,10 +163,7 @@ export class ShareDBClient extends EventEmitter {
           reject(new WanderlogAuthError());
         } else {
           reject(
-            new WanderlogError(
-              `WebSocket upgrade failed: ${res.statusCode}`,
-              "ws_upgrade_failed",
-            ),
+            new WanderlogError(`WebSocket upgrade failed: ${res.statusCode}`, "ws_upgrade_failed"),
           );
         }
       });
@@ -203,7 +198,7 @@ export class ShareDBClient extends EventEmitter {
 
     if (frame.error) {
       const err = frame.error as string | { message?: string };
-      const errMsg = typeof err === "string" ? err : err.message ?? "unknown";
+      const errMsg = typeof err === "string" ? err : (err.message ?? "unknown");
 
       // If the error frame carries a seq, it belongs to a specific submit.
       // Fail only that one pending op, so concurrent/queued submits are not
@@ -253,9 +248,7 @@ export class ShareDBClient extends EventEmitter {
 
   private handleOpFrame(frame: OpFrame): void {
     const isOurAck =
-      frame.src === this.sessionId &&
-      frame.seq !== undefined &&
-      this.pendingOps.has(frame.seq);
+      frame.src === this.sessionId && frame.seq !== undefined && this.pendingOps.has(frame.seq);
 
     if (isOurAck) {
       const pending = this.pendingOps.get(frame.seq!)!;
@@ -303,10 +296,7 @@ export class ShareDBClient extends EventEmitter {
 
   private send(obj: unknown): void {
     if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
-      throw new WanderlogError(
-        "WebSocket is not open — cannot send frame",
-        "ws_not_open",
-      );
+      throw new WanderlogError("WebSocket is not open — cannot send frame", "ws_not_open");
     }
     this.ws.send(JSON.stringify(obj));
   }
@@ -345,10 +335,7 @@ export class ShareDBClient extends EventEmitter {
    */
   async submit(ops: Json0Op[]): Promise<void> {
     if (!this.subscribed) {
-      throw new WanderlogError(
-        "Cannot submit op before subscribing to the trip",
-        "not_subscribed",
-      );
+      throw new WanderlogError("Cannot submit op before subscribing to the trip", "not_subscribed");
     }
     if (ops.length === 0) {
       throw new WanderlogError("Cannot submit an empty op array", "empty_op");

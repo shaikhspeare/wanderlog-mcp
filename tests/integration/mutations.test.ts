@@ -139,7 +139,11 @@ describe("Mutation tools (live round-trip)", () => {
     expect(day1).toBeDefined();
     const noteBlock = day1!.blocks.find((b) => b.type === "note") as NoteBlock | undefined;
     expect(noteBlock).toBeDefined();
-    expect(noteBlock!.text?.ops?.some((op) => typeof op.insert === "string" && op.insert.includes("sunscreen"))).toBe(true);
+    expect(
+      noteBlock!.text?.ops?.some(
+        (op) => typeof op.insert === "string" && op.insert.includes("sunscreen"),
+      ),
+    ).toBe(true);
   }, 30_000);
 
   it("add_note adds a note to the unscheduled list", async () => {

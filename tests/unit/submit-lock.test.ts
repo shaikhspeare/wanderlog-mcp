@@ -97,9 +97,7 @@ describe("submitOp per-trip mutex", () => {
     // delay and strict serialization, gaps are >= 0; with parallelism they'd
     // all start near 0 and overlap heavily.
     for (let i = 1; i < records.length; i++) {
-      expect(records[i]!.startedAt).toBeGreaterThanOrEqual(
-        records[i - 1]!.endedAt - 5,
-      );
+      expect(records[i]!.startedAt).toBeGreaterThanOrEqual(records[i - 1]!.endedAt - 5);
     }
   });
 
