@@ -62,7 +62,7 @@ ws.on("message", (raw) => {
     console.log(`  sections:   ${doc.itinerary?.sections?.length ?? "?"}`);
     doc.itinerary?.sections?.forEach((s, i) => {
       console.log(
-        `    [${i}] type=${s.type} mode=${s.mode} heading="${s.heading}" date=${s.date ?? "-"} blocks=${s.blocks?.length ?? 0}`
+        `    [${i}] type=${s.type} mode=${s.mode} heading="${s.heading}" date=${s.date ?? "-"} blocks=${s.blocks?.length ?? 0}`,
       );
     });
     console.log(`  contributors: ${doc.contributors?.map((c) => c.username).join(", ")}`);

@@ -2,22 +2,14 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import {
-  buildNoteBlock,
-  findTargetSection,
-  requireUserId,
-  submitOp,
-} from "./shared.js";
+import { buildNoteBlock, findTargetSection, requireUserId, submitOp } from "./shared.js";
 
 export const addNoteInputSchema = {
   trip_key: z
     .string()
     .min(1)
     .describe("The trip to add the note to. Use wanderlog_list_trips if you don't know the key."),
-  text: z
-    .string()
-    .min(1)
-    .describe("The note text. Plain text — can be multi-line."),
+  text: z.string().min(1).describe("The note text. Plain text — can be multi-line."),
   day: z
     .string()
     .optional()

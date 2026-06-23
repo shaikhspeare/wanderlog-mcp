@@ -128,13 +128,7 @@ export function isChecklistBlock(block: Block): block is ChecklistBlock {
   return block.type === "checklist" && "items" in block;
 }
 
-export type SectionType =
-  | "textOnly"
-  | "normal"
-  | "hotels"
-  | "flights"
-  | "transit"
-  | string;
+export type SectionType = "textOnly" | "normal" | "hotels" | "flights" | "transit" | string;
 
 export type Section = {
   id: number;

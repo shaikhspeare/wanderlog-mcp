@@ -10,10 +10,7 @@ import { extractDeltaText } from "./remove-note.js";
 
 export const editNoteInputSchema = {
   trip_key: z.string().min(1).describe("The trip to edit."),
-  old_text: z
-    .string()
-    .min(1)
-    .describe("Substring to find and replace (case-insensitive)."),
+  old_text: z.string().min(1).describe("Substring to find and replace (case-insensitive)."),
   new_text: z.string().describe("Replacement text."),
   day: z
     .string()

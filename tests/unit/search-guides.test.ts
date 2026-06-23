@@ -25,7 +25,14 @@ describe("search-guides resolveGeo", () => {
       geoAutocomplete: async () => [
         { id: 1, name: "Vietnam", countryName: null, popularity: 5, latitude: 0, longitude: 0 },
         { id: 2, name: "Vietnam", countryName: null, popularity: 95, latitude: 0, longitude: 0 },
-        { id: 3, name: "Vietnam-ish", countryName: null, popularity: 50, latitude: 0, longitude: 0 },
+        {
+          id: 3,
+          name: "Vietnam-ish",
+          countryName: null,
+          popularity: 50,
+          latitude: 0,
+          longitude: 0,
+        },
       ],
     });
     const result = await resolveGeo(ctx, { destination: "Vietnam" });
@@ -160,9 +167,7 @@ describe("projectGuide", () => {
   });
 });
 
-function handlerCtx(
-  overrides: Partial<AppContext["rest"]> = {},
-): AppContext {
+function handlerCtx(overrides: Partial<AppContext["rest"]> = {}): AppContext {
   return {
     rest: {
       geoAutocomplete: async () => [],
@@ -210,7 +215,14 @@ describe("searchGuides (handler)", () => {
     };
     const ctx = handlerCtx({
       geoAutocomplete: async () => [
-        { id: 86655, name: "Vietnam", countryName: null, popularity: 100, latitude: 0, longitude: 0 },
+        {
+          id: 86655,
+          name: "Vietnam",
+          countryName: null,
+          popularity: 100,
+          latitude: 0,
+          longitude: 0,
+        },
       ],
       listGoodGuides: async () => goodGuides,
       getGuidesForGeo: async () => ({ geo: goodGuides[0]!, guides: [guide] }),
@@ -230,14 +242,39 @@ describe("searchGuides (handler)", () => {
     const goodGuides: GeoWithGoodGuides[] = [
       { id: 86647, name: "Japan", subcategory: "country", popularity: 0 },
       { id: 9614, name: "Paris", countryName: "France", subcategory: "city", popularity: 857235 },
-      { id: 9613, name: "London", countryName: "United Kingdom", subcategory: "city", popularity: 1055882 },
-      { id: 58144, name: "New York City", countryName: "United States", subcategory: "city", popularity: 1056637 },
-      { id: 9625, name: "Amsterdam", countryName: "The Netherlands", subcategory: "city", popularity: 400126 },
+      {
+        id: 9613,
+        name: "London",
+        countryName: "United Kingdom",
+        subcategory: "city",
+        popularity: 1055882,
+      },
+      {
+        id: 58144,
+        name: "New York City",
+        countryName: "United States",
+        subcategory: "city",
+        popularity: 1056637,
+      },
+      {
+        id: 9625,
+        name: "Amsterdam",
+        countryName: "The Netherlands",
+        subcategory: "city",
+        popularity: 400126,
+      },
       { id: 88419, name: "Iceland", subcategory: "country", popularity: 0 },
     ];
     const ctx = handlerCtx({
       geoAutocomplete: async () => [
-        { id: 9999, name: "Smalltown", countryName: "X", popularity: 10, latitude: 0, longitude: 0 },
+        {
+          id: 9999,
+          name: "Smalltown",
+          countryName: "X",
+          popularity: 10,
+          latitude: 0,
+          longitude: 0,
+        },
       ],
       listGoodGuides: async () => goodGuides,
       // Simulate Wanderlog returning no guides for this geo: 404 → throw.
@@ -279,7 +316,14 @@ describe("searchGuides (handler)", () => {
     };
     const ctx = handlerCtx({
       geoAutocomplete: async () => [
-        { id: 4, name: "Bangkok", countryName: "Thailand", popularity: 347007, latitude: 0, longitude: 0 },
+        {
+          id: 4,
+          name: "Bangkok",
+          countryName: "Thailand",
+          popularity: 347007,
+          latitude: 0,
+          longitude: 0,
+        },
       ],
       listGoodGuides: async () => goodGuides,
       getGuidesForGeo: async () => ({ geo: bangkokGeo, guides: [guide] }),

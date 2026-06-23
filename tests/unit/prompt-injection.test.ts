@@ -1,13 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  formatTrip,
-  formatTripList,
-  formatBlockLine,
-} from "../../src/formatters/trip-summary.ts";
-import {
-  INJECTION_STRINGS,
-  injectionTrip,
-} from "../fixtures/injection-trip.ts";
+import { formatTrip, formatTripList, formatBlockLine } from "../../src/formatters/trip-summary.ts";
+import { INJECTION_STRINGS, injectionTrip } from "../fixtures/injection-trip.ts";
 
 /**
  * Prompt-injection guard. Trip content is untrusted user data and may contain

@@ -21,10 +21,7 @@ describe("MCP stdio server (smoke)", () => {
     return proc;
   };
 
-  const sendRequest = async (
-    p: ChildProcessWithoutNullStreams,
-    request: object,
-  ): Promise<any> => {
+  const sendRequest = async (p: ChildProcessWithoutNullStreams, request: object): Promise<any> => {
     return new Promise((resolve, reject) => {
       let buffer = "";
       const onData = (chunk: Buffer) => {

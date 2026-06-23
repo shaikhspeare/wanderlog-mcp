@@ -2,10 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
 import type { Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
-import {
-  editNote,
-  findEditTargets,
-} from "../../src/tools/edit-note.ts";
+import { editNote, findEditTargets } from "../../src/tools/edit-note.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
 import { mixedBlocksTrip } from "../fixtures/mixed-blocks-trip.ts";
 
@@ -331,9 +328,7 @@ describe("editNote", () => {
             mode: "dayPlan",
             heading: "",
             date: "2026-06-01",
-            blocks: [
-              { id: 10, type: "note", text: { ops: [{ insert: "Please book early.\n" }] } },
-            ],
+            blocks: [{ id: 10, type: "note", text: { ops: [{ insert: "Please book early.\n" }] } }],
           },
         ],
       },

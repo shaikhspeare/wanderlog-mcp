@@ -49,7 +49,14 @@ describe("enumerateDates", () => {
 describe("findDayInsertIndex", () => {
   const baseSections: Section[] = [
     { id: 1, type: "textOnly", mode: "placeList", heading: "Notes", date: null, blocks: [] },
-    { id: 2, type: "normal", mode: "placeList", heading: "Places to visit", date: null, blocks: [] },
+    {
+      id: 2,
+      type: "normal",
+      mode: "placeList",
+      heading: "Places to visit",
+      date: null,
+      blocks: [],
+    },
     { id: 3, type: "normal", mode: "dayPlan", heading: "", date: "2026-05-03", blocks: [] },
     { id: 4, type: "normal", mode: "dayPlan", heading: "", date: "2026-05-04", blocks: [] },
     { id: 5, type: "normal", mode: "dayPlan", heading: "", date: "2026-05-05", blocks: [] },
@@ -83,18 +90,12 @@ describe("diffDays", () => {
   it("reports pure shortening", () => {
     const diff = diffDays(queenstownTrip, "2026-05-03", "2026-05-06");
     expect(diff.toAdd).toHaveLength(0);
-    expect(diff.toRemove.map((r) => r.date).sort()).toEqual([
-      "2026-05-07",
-      "2026-05-08",
-    ]);
+    expect(diff.toRemove.map((r) => r.date).sort()).toEqual(["2026-05-07", "2026-05-08"]);
   });
 
   it("reports a shift (both ends move)", () => {
     const diff = diffDays(queenstownTrip, "2026-05-05", "2026-05-10");
-    expect(diff.toRemove.map((r) => r.date).sort()).toEqual([
-      "2026-05-03",
-      "2026-05-04",
-    ]);
+    expect(diff.toRemove.map((r) => r.date).sort()).toEqual(["2026-05-03", "2026-05-04"]);
     expect(diff.toAdd.sort()).toEqual(["2026-05-09", "2026-05-10"]);
   });
 
@@ -107,9 +108,9 @@ describe("diffDays", () => {
 
 describe("buildUpdateDatesOps", () => {
   it("throws when end_date is before start_date", () => {
-    expect(() =>
-      buildUpdateDatesOps(queenstownTrip, "2026-05-10", "2026-05-05", false),
-    ).toThrow(WanderlogValidationError);
+    expect(() => buildUpdateDatesOps(queenstownTrip, "2026-05-10", "2026-05-05", false)).toThrow(
+      WanderlogValidationError,
+    );
   });
 
   it("returns an empty op list when nothing changes", () => {
@@ -150,9 +151,9 @@ describe("buildUpdateDatesOps", () => {
       },
     ];
 
-    expect(() =>
-      buildUpdateDatesOps(tripWithContent, "2026-05-03", "2026-05-06", false),
-    ).toThrow(WanderlogValidationError);
+    expect(() => buildUpdateDatesOps(tripWithContent, "2026-05-03", "2026-05-06", false)).toThrow(
+      WanderlogValidationError,
+    );
 
     try {
       buildUpdateDatesOps(tripWithContent, "2026-05-03", "2026-05-06", false);
@@ -249,9 +250,7 @@ describe("buildUpdateDatesOps", () => {
       (s) => s.mode === "dayPlan" && s.date === "2026-05-04",
     );
     expect(day4After?.blocks).toHaveLength(1);
-    expect((day4After!.blocks[0] as { place: { name: string } }).place.name).toBe(
-      "Survivor",
-    );
+    expect((day4After!.blocks[0] as { place: { name: string } }).place.name).toBe("Survivor");
   });
 
   it("round-trips: shift (disjoint range) adds and removes correctly", () => {

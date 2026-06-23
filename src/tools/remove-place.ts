@@ -53,9 +53,7 @@ export async function removePlace(
       const lines = result.candidates
         .slice(0, 10)
         .map((c, i) => {
-          const name = isPlaceBlock(c.block)
-            ? c.block.place.name
-            : `${c.block.type} block`;
+          const name = isPlaceBlock(c.block) ? c.block.place.name : `${c.block.type} block`;
           const where = formatLocation(c.section);
           const ordinal = ordinalLabel(i + 1);
           return `  ${i + 1}. ${name} — ${where} (${ordinal})`;
@@ -88,9 +86,7 @@ export async function removePlace(
 
     await submitOp(ctx, args.trip_key, ops);
 
-    const removedName = isPlaceBlock(block)
-      ? block.place.name
-      : `${block.type} block`;
+    const removedName = isPlaceBlock(block) ? block.place.name : `${block.type} block`;
     const text = `Removed ${removedName} from ${formatLocation(section)} in "${trip.title}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {

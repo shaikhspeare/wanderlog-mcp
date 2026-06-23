@@ -20,9 +20,7 @@ describe("applyOp – list insert (li)", () => {
         place_id: "ChIJ_skyline",
       },
     };
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", 2, "blocks", 0], li: newBlock },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", 2, "blocks", 0], li: newBlock }];
     const next = applyOp(doc, ops);
     const placesSection = next.itinerary.sections[2]!;
     expect(placesSection.blocks).toHaveLength(2);
@@ -45,14 +43,10 @@ describe("applyOp – list insert (li)", () => {
       blocks: [],
     };
 
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", 1], li: newSection },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", 1], li: newSection }];
     const next = applyOp(doc, ops);
 
-    expect(next.itinerary.sections).toHaveLength(
-      queenstownTrip.itinerary.sections.length + 1,
-    );
+    expect(next.itinerary.sections).toHaveLength(queenstownTrip.itinerary.sections.length + 1);
     expect(next.itinerary.sections[1]!.id).toBe(12345);
     expect(next.itinerary.sections[2]!.id).toBe(originalSection1Id);
     expect(next.itinerary.sections[3]!.id).toBe(originalSection2Id);
@@ -183,9 +177,7 @@ describe("applyOp – list move (lm)", () => {
     const before = daySection.blocks.map((b) => b.id);
     expect(before).toEqual([10001, 10002]);
 
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", 4, "blocks", 0], lm: 1 },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", 4, "blocks", 0], lm: 1 }];
     const next = applyOp(doc, ops);
     const after = next.itinerary.sections[4]!.blocks.map((b) => b.id);
     expect(after).toEqual([10002, 10001]);
@@ -195,9 +187,7 @@ describe("applyOp – list move (lm)", () => {
 describe("applyOp – replace (r)", () => {
   it("replaces the trip title", () => {
     const doc = fresh(queenstownTrip);
-    const ops: Json0Op[] = [
-      { p: ["title"], r: "Queenstown Long Weekend" },
-    ];
+    const ops: Json0Op[] = [{ p: ["title"], r: "Queenstown Long Weekend" }];
     const next = applyOp(doc, ops);
     expect(next.title).toBe("Queenstown Long Weekend");
   });
@@ -209,9 +199,7 @@ describe("applyOp – replace (r)", () => {
       place_id: "ChIJ_hayes",
       rating: 4.9,
     };
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", 2, "blocks", 0, "place"], r: newPlace },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", 2, "blocks", 0, "place"], r: newPlace }];
     const next = applyOp(doc, ops);
     const updated = next.itinerary.sections[2]!.blocks[0] as PlaceBlock;
     expect(updated.place).toEqual(newPlace);
@@ -238,9 +226,7 @@ describe("applyOp – numeric add (na)", () => {
 describe("applyOp – string insert/delete (si/sd)", () => {
   it("si inserts characters into the title", () => {
     const doc = fresh(queenstownTrip);
-    const ops: Json0Op[] = [
-      { p: ["title", 8], si: "lovely " },
-    ];
+    const ops: Json0Op[] = [{ p: ["title", 8], si: "lovely " }];
     const next = applyOp(doc, ops);
     expect(next.title).toBe("Trip to lovely Queenstown");
   });
@@ -257,9 +243,7 @@ describe("applyOp – string insert/delete (si/sd)", () => {
 
   it("sd verification fails when substring does not match", () => {
     const doc = fresh(queenstownTrip);
-    const ops: Json0Op[] = [
-      { p: ["title", 0], sd: "Voyage" },
-    ];
+    const ops: Json0Op[] = [{ p: ["title", 0], sd: "Voyage" }];
     expect(() => applyOp(doc, ops)).toThrowError(WanderlogError);
   });
 
