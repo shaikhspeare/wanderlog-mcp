@@ -135,6 +135,7 @@ export async function addPlace(
     }
     const topPrediction = predictions[0]!;
     const detail: PlaceData = await ctx.rest.getPlaceDetails(topPrediction.place_id);
+    const imageKeys = await ctx.rest.getPlacePhotos(detail);
 
     // Build the block WITHOUT timing — timing is set via separate oi ops
     // to match the Wanderlog UI's two-step pattern (insert block, then set fields).
@@ -145,6 +146,11 @@ export async function addPlace(
     const ops: Json0Op[] = [
       { p: blockPath, li: block },
     ];
+    // iOS/iPadOS native apps render thumbnails strictly from `imageKeys`.
+    // Submit together with the `li` so no client ever sees a keyless block.
+    if (imageKeys.length > 0) {
+      ops.push({ p: [...blockPath, "imageKeys"], oi: imageKeys });
+    }
 
     await submitOp(ctx, args.trip_key, ops);
 

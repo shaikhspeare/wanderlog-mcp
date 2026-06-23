@@ -157,6 +157,26 @@ export class RestClient {
     return env.data ?? [];
   }
 
+  /**
+   * Fetch Wanderlog-internal image keys for a place. The UI calls this before
+   * inserting a place block and stores the returned keys on `block.imageKeys`.
+   * Native apps (iOS/iPadOS) render images strictly from `imageKeys` — without
+   * them, the block shows no thumbnail. Returns [] on failure so callers can
+   * fall back to inserting the block without images.
+   */
+  async getPlacePhotos(place: PlaceData): Promise<string[]> {
+    try {
+      const env = await this.request<Envelope<{ data?: string[] }>>(
+        "POST",
+        `/api/placePhotos/${encodeURIComponent(place.place_id)}`,
+        { body: { place } },
+      );
+      return Array.isArray(env.data) ? env.data : [];
+    } catch {
+      return [];
+    }
+  }
+
   async getPlaceDetails(placeId: string, language = "en"): Promise<PlaceData> {
     const env = await this.request<Envelope<{ data?: PlaceData }>>(
       "GET",
