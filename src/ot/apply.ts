@@ -1,3 +1,4 @@
+import { isDeepStrictEqual } from "node:util";
 import { WanderlogError } from "../errors.js";
 import type { TripPlan } from "../types.js";
 
@@ -270,7 +271,7 @@ function applySingleOp(doc: JsonContainer, op: Json0Op): void {
         pathInvalid(p, `ld index ${last} out of bounds`);
       }
       const existing = parent[last];
-      if (op.ld !== null && JSON.stringify(existing) !== JSON.stringify(op.ld)) {
+      if (op.ld !== null && !isDeepStrictEqual(existing, op.ld)) {
         throw new WanderlogError(
           `JSON0 ld verification failed at path [${p.join(", ")}]: existing element does not match provided ld value`,
           "ot_path_invalid",
