@@ -11,6 +11,7 @@ import {
   findTripCenter,
   requireUserId,
   submitOp,
+  validateTimeInputs,
 } from "./shared.js";
 
 export const addPlaceInputSchema = {
@@ -77,6 +78,7 @@ export async function addPlace(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
+    validateTimeInputs(args.start_time, args.end_time);
     const userId = requireUserId(ctx);
     const entry = await ctx.tripCache.getEntry(args.trip_key);
     const trip = entry.snapshot;
