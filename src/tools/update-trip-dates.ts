@@ -79,6 +79,9 @@ export function buildEmptyDaySection(date: string): Section {
     type: "normal",
     mode: "dayPlan",
     heading: "",
+    // Server-side validation requires text on sections — an li without it gets
+    // silently dropped (no ack, submit times out).
+    text: { ops: [{ insert: "\n" }] },
     date,
     blocks: [],
     placeMarkerColor: "#3498db",

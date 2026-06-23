@@ -56,7 +56,7 @@ export async function submitOp(
       );
     }
     try {
-      await client.submit(ops);
+      await submitWithRateLimitRetry(client, ops);
       ctx.tripCache.applyLocalOp(tripKey, ops, client.version);
     } catch (err) {
       // Any submit failure leaves our cached view possibly inconsistent with
@@ -65,6 +65,35 @@ export async function submitOp(
       throw err;
     }
   });
+}
+
+const RATE_LIMIT_RETRY_DELAYS_MS = [2_000, 4_000, 8_000];
+
+// A rate-limited op (code 4001) is rejected before the server processes it —
+// it never acks and never applies — so resubmitting the same ops at the same
+// version is safe. Burst mutations (e.g. an LLM building a full itinerary)
+// hit the limit routinely; waiting out the window beats surfacing an error.
+async function submitWithRateLimitRetry(
+  client: { submit(ops: Json0Op[]): Promise<void> },
+  ops: Json0Op[],
+): Promise<void> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      await client.submit(ops);
+      return;
+    } catch (err) {
+      const isRateLimit =
+        err instanceof WanderlogError && err.code === "rate_limited";
+      if (!isRateLimit || attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length) {
+        throw err;
+      }
+      await new Promise((r) =>
+        setTimeout(r, RATE_LIMIT_RETRY_DELAYS_MS[attempt]),
+      );
+      attempt += 1;
+    }
+  }
 }
 
 /** Wanderlog block IDs are 9-digit numeric. */

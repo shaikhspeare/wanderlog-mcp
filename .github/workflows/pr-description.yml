@@ -1,0 +1,53 @@
+name: PR description check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validate PR body has Summary and Test plan
+        env:
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -e
+
+          if [ -z "${BODY// }" ]; then
+            echo "::error::PR description is empty. Fill in the template — at minimum ## Summary and ## Test plan."
+            exit 1
+          fi
+
+          summary=$(printf '%s' "$BODY" | awk '
+            /^##[[:space:]]+Summary[[:space:]]*$/ { capture=1; next }
+            /^##[[:space:]]/ { capture=0 }
+            capture { print }
+          ' | sed -E 's/<!--.*-->//g' | tr -d '[:space:]')
+
+          testplan=$(printf '%s' "$BODY" | awk '
+            /^##[[:space:]]+Test plan[[:space:]]*$/ { capture=1; next }
+            /^##[[:space:]]/ { capture=0 }
+            capture { print }
+          ' | sed -E 's/<!--.*-->//g' | tr -d '[:space:]')
+
+          missing=0
+
+          if [ ${#summary} -lt 20 ]; then
+            echo "::error::## Summary section is missing or too short (need at least 20 non-whitespace chars of real content, excluding HTML comments)."
+            missing=1
+          fi
+
+          if [ ${#testplan} -lt 20 ]; then
+            echo "::error::## Test plan section is missing or too short (need at least 20 non-whitespace chars of real content, excluding HTML comments)."
+            missing=1
+          fi
+
+          if [ "$missing" -eq 1 ]; then
+            exit 1
+          fi
+
+          echo "PR description OK."

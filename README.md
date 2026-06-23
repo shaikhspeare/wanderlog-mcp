@@ -15,6 +15,20 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 **See a real example:** [14-day Japan Golden Route](https://wanderlog.com/view/dmvegdhqsa/japan-golden-route--tokyo--hakone--kyoto--nara--osaka) — built entirely by an AI agent using this MCP server.
 
+## What's New in v0.3.1
+
+- Wanderlog rate-limits rapid edits — burst mutations (an LLM building a full itinerary) now retry automatically with backoff instead of failing with an opaque "Submit op timeout".
+- Rate-limit rejections that can't be retried surface as a clear error instead of a 10-second hang.
+- New day sections created by `wanderlog_update_trip_dates` now match Wanderlog's native section shape exactly.
+
+## What's New in v0.3.0
+
+- `wanderlog_search_guides` + `wanderlog_get_guide` — discover and read user-written Wanderlog travel guides. The LLM can ask "what guides exist for Vietnam?" and pull full itineraries to use as inspiration.
+- `wanderlog_remove_note` — remove standalone note blocks by natural-language reference.
+- `wanderlog_edit_note` — find-and-replace across note blocks, place annotations, and checklist titles/items.
+- Detailed mode no longer truncates place notes or note blocks — guides and itineraries render their full commentary.
+- Fixes: notes containing embeds no longer render as `[object Object]`; place references now match across hyphen/dash differences (e.g. `"Roppongi Hills - Tokyo City View"`).
+
 ## What's New in v0.2.0
 
 - `wanderlog_rename_day` — replace auto-generated day headings (e.g. `"Barcelona"`) with descriptive ones (`"Arrival — Feria de Abril"`). Pass `""` to reset back to the default.
@@ -70,12 +84,19 @@ and a ryokan in Shinjuku."
 | `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
 | `wanderlog_get_trip_forwarding_email` | Get a trip's `trip+<id>@wanderlog.com` import address |
 | `wanderlog_search_places` | Find real-world places near a trip's destination |
+| `wanderlog_search_guides` | List user-written travel guides for a destination, with fallback suggestions when none exist |
+| `wanderlog_get_guide` | Read the full content of a public Wanderlog guide (sections, places, notes) |
 | `wanderlog_create_trip` | Create a new trip with destination + date range |
 | `wanderlog_add_place` | Add a place to a specific day or general list |
 | `wanderlog_add_note` | Add a note (transit tips, booking info, local advice) |
+| `wanderlog_edit_note` | Find-and-replace text in notes, place annotations, and checklists |
+| `wanderlog_remove_note` | Remove a standalone note block by natural-language reference |
 | `wanderlog_add_hotel` | Add a hotel booking with check-in/check-out dates |
 | `wanderlog_add_checklist` | Add a pre-trip or per-day checklist |
-| `wanderlog_add_expense` | Log a budget expense (amount, category, currency) linked to a place |
+| `wanderlog_add_expense` | Log a budget expense (amount, category, currency), optionally linked to a place |
+| `wanderlog_list_expenses` | List budget expenses, optionally filtered by description / date / amount / currency |
+| `wanderlog_remove_expense` | Remove a budget expense by description (with optional date / amount / currency filters) |
+| `wanderlog_edit_expense` | Change a budget expense's description, amount, currency, category, or date |
 | `wanderlog_annotate_place` | Update an existing place with a note, start/end time, or both |
 | `wanderlog_remove_place` | Remove a place by natural-language reference |
 | `wanderlog_update_trip_dates` | Change a trip's date range |

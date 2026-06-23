@@ -85,6 +85,31 @@ import {
   removeNoteDescription,
   removeNoteInputSchema,
 } from "./tools/remove-note.js";
+import {
+  listExpenses,
+  listExpensesDescription,
+  listExpensesInputSchema,
+} from "./tools/list-expenses.js";
+import {
+  removeExpense,
+  removeExpenseDescription,
+  removeExpenseInputSchema,
+} from "./tools/remove-expense.js";
+import {
+  editExpense,
+  editExpenseDescription,
+  editExpenseInputSchema,
+} from "./tools/edit-expense.js";
+import {
+  searchGuides,
+  searchGuidesDescription,
+  searchGuidesInputSchema,
+} from "./tools/search-guides.js";
+import {
+  getGuide,
+  getGuideDescription,
+  getGuideInputSchema,
+} from "./tools/get-guide.js";
 
 const AUTH_ERROR_RESPONSE = {
   content: [
@@ -126,6 +151,11 @@ of places. A complete itinerary uses these building blocks:
   5. wanderlog_add_expense — add estimated costs for meals, entrance fees, transport passes.
      Link each expense to its place for budget tracking.
   6. wanderlog_annotate_place — update an existing place with a note, start/end time, or both.
+  7. wanderlog_search_guides + wanderlog_get_guide — when the user wants inspiration ("give
+     me an itinerary I can copy", "what guides exist for Vietnam"), call search_guides FIRST
+     to list curated user-written guides for the destination, then get_guide with the chosen
+     guide_key to read the full content. Use this for OTHER people's published guides; for
+     your own trips use wanderlog_get_trip.
 
 Example add_place call with all features:
   wanderlog_add_place(trip_key, place: "Sensō-ji", day: "day 1",
@@ -138,7 +168,7 @@ Places without notes and times are just pins on a map. Rich places make an itine
 
 export function buildServer(ctx: AppContext): McpServer {
   const server = new McpServer(
-    { name: "wanderlog-mcp", version: "0.3.0" },
+    { name: "wanderlog-mcp", version: "0.3.2" },
     { instructions: SERVER_INSTRUCTIONS },
   );
 
@@ -191,6 +221,30 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: searchPlacesInputSchema,
     },
     requireAuth(ctx, async (args) => searchPlaces(ctx, args as Parameters<typeof searchPlaces>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_search_guides",
+    {
+      title: "Search Wanderlog travel guides",
+      description: searchGuidesDescription,
+      inputSchema: searchGuidesInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      searchGuides(ctx, args as Parameters<typeof searchGuides>[1]),
+    ),
+  );
+
+  server.registerTool(
+    "wanderlog_get_guide",
+    {
+      title: "Read a Wanderlog travel guide",
+      description: getGuideDescription,
+      inputSchema: getGuideInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      getGuide(ctx, args as Parameters<typeof getGuide>[1]),
+    ),
   );
 
   server.registerTool(
@@ -263,6 +317,39 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       addExpense(ctx, args as Parameters<typeof addExpense>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_list_expenses",
+    {
+      title: "List budget expenses on a Wanderlog trip",
+      description: listExpensesDescription,
+      inputSchema: listExpensesInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      listExpenses(ctx, args as Parameters<typeof listExpenses>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_remove_expense",
+    {
+      title: "Remove a budget expense from a Wanderlog trip",
+      description: removeExpenseDescription,
+      inputSchema: removeExpenseInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      removeExpense(ctx, args as Parameters<typeof removeExpense>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_edit_expense",
+    {
+      title: "Edit a budget expense on a Wanderlog trip",
+      description: editExpenseDescription,
+      inputSchema: editExpenseInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      editExpense(ctx, args as Parameters<typeof editExpense>[1])),
   );
 
   server.registerTool(

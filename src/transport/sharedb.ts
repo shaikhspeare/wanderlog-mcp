@@ -181,10 +181,26 @@ export class ShareDBClient extends EventEmitter {
   }
 
   private handleFrame(
-    frame: Frame & { error?: unknown; seq?: number },
+    frame: Frame & { error?: unknown; seq?: number; code?: number; message?: string },
     handshakeTimeout: NodeJS.Timeout,
     connectResolve: () => void,
   ): void {
+    // Server rejections arrive as bare {code, message} frames with no `a` and
+    // no `seq` (observed: {code: 4001, message: "Too many requests"}). Without
+    // this branch they fall through silently and the submit dies as an opaque
+    // 10s timeout. No seq means we can't attribute it — fail everything.
+    const bare = frame as { a?: string; code?: number; message?: string };
+    if (bare.a === undefined && typeof bare.code === "number") {
+      const code = bare.code === 4001 ? "rate_limited" : "ws_rejected";
+      this.failAllPending(
+        new WanderlogError(
+          `Wanderlog rejected the request (${bare.code}): ${bare.message ?? "unknown"}`,
+          code,
+        ),
+      );
+      return;
+    }
+
     if (frame.error) {
       const err = frame.error as string | { message?: string };
       const errMsg = typeof err === "string" ? err : err.message ?? "unknown";

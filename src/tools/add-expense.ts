@@ -45,8 +45,9 @@ export const addExpenseInputSchema = {
   place: z
     .string()
     .min(1)
+    .optional()
     .describe(
-      "Natural-language reference to link this expense to a place in the trip (e.g. 'Sensō-ji', 'the hotel'). Required — every expense must be linked to a place.",
+      "Optional natural-language reference to link this expense to a place in the trip (e.g. 'Sensō-ji', 'the hotel'). Omit to log an unlinked expense (counts toward the budget total but isn't attached to a place).",
     ),
   date: z
     .string()
@@ -56,11 +57,11 @@ export const addExpenseInputSchema = {
 };
 
 export const addExpenseDescription = `
-Adds a budget expense to a Wanderlog trip linked to a specific place. Expenses appear in the
-trip's budget tracker on the linked place.
+Adds a budget expense to a Wanderlog trip. Optionally links the expense to a place so it shows up
+on that place in the budget tracker; omit "place" to log a standalone (unlinked) expense.
 
-Use this after adding places to give the trip a cost dimension — estimated meal costs, entrance
-fees, transport passes, etc. The place must already exist in the trip.
+Use this to give the trip a cost dimension — estimated meal costs, entrance fees, transport
+passes, etc. If you link a place, it must already exist in the trip.
 
 Returns confirmation with the expense amount and description.
 `.trim();
@@ -71,7 +72,7 @@ type Args = {
   currency: string;
   category: string;
   description: string;
-  place: string;
+  place?: string;
   date?: string;
 };
 
@@ -84,32 +85,36 @@ export async function addExpense(
     const entry = await ctx.tripCache.getEntry(args.trip_key);
     const trip = entry.snapshot;
 
-    // Every expense must be linked to a place — Wanderlog's UI crashes on
-    // unlinked expenses (blockId: null triggers an undefined .text access).
-    const result = resolvePlaceRef(trip, args.place);
-    if (result.kind === "ambiguous") {
-      const lines = result.candidates.map((c, i) => {
-        const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
-        const loc = c.section.date ? `day ${c.section.date}` : c.section.heading || "unscheduled";
-        return `  ${i + 1}. ${name} (${loc})`;
-      });
-      const text = `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference.`;
-      return { content: [{ type: "text", text }] };
+    // Linking to a place is optional — Wanderlog accepts unlinked expenses
+    // (blockId: null), which appear in the budget total without a place.
+    let blockId: number | null = null;
+    let associatedDate: string | null = null;
+    if (args.place) {
+      const result = resolvePlaceRef(trip, args.place);
+      if (result.kind === "ambiguous") {
+        const lines = result.candidates.map((c, i) => {
+          const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
+          const loc = c.section.date ? `day ${c.section.date}` : c.section.heading || "unscheduled";
+          return `  ${i + 1}. ${name} (${loc})`;
+        });
+        const text = `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference.`;
+        return { content: [{ type: "text", text }] };
+      }
+      if (result.kind === "none") {
+        throw new WanderlogError(
+          `No place matching "${args.place}" found in "${trip.title}"`,
+          "place_ref_not_found",
+          {
+            hint: "Add the place to the trip first with wanderlog_add_place, or omit 'place' to log an unlinked expense.",
+            followUps: [
+              `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see existing places.`,
+            ],
+          },
+        );
+      }
+      blockId = result.match.block.id;
+      associatedDate = result.match.section.date;
     }
-    if (result.kind === "none") {
-      throw new WanderlogError(
-        `No place matching "${args.place}" found in "${trip.title}"`,
-        "place_ref_not_found",
-        {
-          hint: "Add the place to the trip first with wanderlog_add_place, then add the expense.",
-          followUps: [
-            `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see existing places.`,
-          ],
-        },
-      );
-    }
-    const blockId = result.match.block.id;
-    const associatedDate = result.match.section.date;
 
     const expenseDate = args.date ?? new Date().toISOString().slice(0, 10);
 
@@ -147,7 +152,8 @@ export async function addExpense(
     await submitOp(ctx, args.trip_key, ops);
 
     const currencyLabel = args.currency.toUpperCase();
-    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}" (linked to ${args.place}) in "${trip.title}".`;
+    const linkLabel = args.place ? ` (linked to ${args.place})` : "";
+    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}"${linkLabel} in "${trip.title}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =
