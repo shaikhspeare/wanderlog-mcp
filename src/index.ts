@@ -1,11 +1,12 @@
 #!/usr/bin/env node
+import type { AppContext } from "./context.ts";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { createContext } from "./context.js";
 import { WanderlogError } from "./errors.js";
 import { buildServer } from "./server.js";
 
 async function main() {
-  let ctx;
+  let ctx: AppContext;
   try {
     ctx = createContext();
   } catch (err) {
