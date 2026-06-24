@@ -7,6 +7,7 @@ type CacheEntry = {
   snapshot: TripPlan;
   version: number;
   geos: Geo[];
+  listener?: (ops: Json0Op[], version: number) => void;
 };
 
 /**
@@ -61,10 +62,8 @@ export class TripCache {
 
     const client = this.pool.get(tripKey);
     const snapshot = await client.subscribe();
-    const entry: CacheEntry = { snapshot, version: client.version, geos };
-    this.entries.set(tripKey, entry);
 
-    client.on("remoteOp", (ops: Json0Op[], version: number) => {
+    const listener = (ops: Json0Op[], version: number) => {
       const current = this.entries.get(tripKey);
       if (!current) return;
       try {
@@ -73,9 +72,14 @@ export class TripCache {
       } catch {
         // If a remote op fails to apply to our snapshot, our view is stale.
         // Drop the entry; next get() re-subscribes from a fresh snapshot.
-        this.entries.delete(tripKey);
+        this.deleteEntry(tripKey);
       }
-    });
+    };
+
+    client.on("remoteOp", listener);
+
+    const entry: CacheEntry = { snapshot, version: client.version, geos, listener };
+    this.entries.set(tripKey, entry);
 
     return entry;
   }
@@ -91,11 +95,24 @@ export class TripCache {
     entry.version = newVersion;
   }
 
+  private deleteEntry(tripKey: string): void {
+    const entry = this.entries.get(tripKey);
+    if (entry) {
+      if (entry.listener) {
+        const client = this.pool.get(tripKey);
+        client.off("remoteOp", entry.listener);
+      }
+      this.entries.delete(tripKey);
+    }
+  }
+
   invalidate(tripKey: string): void {
-    this.entries.delete(tripKey);
+    this.deleteEntry(tripKey);
   }
 
   clear(): void {
-    this.entries.clear();
+    for (const tripKey of this.entries.keys()) {
+      this.deleteEntry(tripKey);
+    }
   }
 }
