@@ -14,7 +14,19 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - name: Cache build output
+        id: cache-build
+        uses: actions/cache@v5
+        with:
+          path: dist
+          key: ${{ runner.os }}-dist-${{ hashFiles('src/**/*.ts', 'tsconfig.json') }}
+      - name: Cache vitest
+        uses: actions/cache@v5
+        with:
+          path: node_modules/.cache/vitest
+          key: ${{ runner.os }}-vitest-${{ hashFiles('src/**/*.ts', 'tests/**/*.ts') }}
       - run: npm ci
       - run: npm run typecheck
       - run: npm run build
+        if: steps.cache-build.outputs.cache-hit != 'true'
       - run: npm run test
