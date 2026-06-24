@@ -283,3 +283,44 @@ export function buildChecklistBlock(
     attachments: [],
   };
 }
+
+const TIME_REGEX = /^(?:[01]\d|2[0-3]):[0-5]\d$/;
+
+export function validateTimeInputs(startTime?: string, endTime?: string): void {
+  if (startTime && !TIME_REGEX.test(startTime)) {
+    throw new WanderlogValidationError(
+      `Invalid start_time: "${startTime}". Hours must be between 00 and 23, and minutes between 00 and 59.`,
+    );
+  }
+  if (endTime && !TIME_REGEX.test(endTime)) {
+    throw new WanderlogValidationError(
+      `Invalid end_time: "${endTime}". Hours must be between 00 and 23, and minutes between 00 and 59.`,
+    );
+  }
+
+  if (startTime && endTime) {
+    if (startTime >= endTime) {
+      throw new WanderlogValidationError(
+        `Invalid time range: start_time ("${startTime}") must be before end_time ("${endTime}").`,
+      );
+    }
+  } else if (endTime && !startTime) {
+    throw new WanderlogValidationError(
+      `An end_time ("${endTime}") was provided without a start_time.`,
+    );
+  }
+}
+
+const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
+
+export function isValidDate(dateStr: string): boolean {
+  if (!DATE_REGEX.test(dateStr)) return false;
+
+  const [year, month, day] = dateStr.split("-").map((s) => parseInt(s, 10));
+  const date = new Date(Date.UTC(year!, month! - 1, day!));
+  return (
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month! - 1 &&
+    date.getUTCDate() === day
+  );
+}

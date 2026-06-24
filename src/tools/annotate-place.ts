@@ -4,7 +4,7 @@ import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolvePlaceRef } from "../resolvers/place-ref.js";
 import { isPlaceBlock } from "../types.js";
-import { submitOp } from "./shared.js";
+import { submitOp, validateTimeInputs } from "./shared.js";
 
 export const annotatePlaceInputSchema = {
   trip_key: z
@@ -57,6 +57,7 @@ export async function annotatePlace(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
+    validateTimeInputs(args.start_time, args.end_time);
     if (!args.note && !args.start_time && !args.end_time) {
       throw new WanderlogValidationError(
         "At least one of note, start_time, or end_time must be provided",
