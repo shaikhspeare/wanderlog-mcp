@@ -75,6 +75,7 @@ export class ShareDBClient extends EventEmitter {
     { resolve: () => void; reject: (err: Error) => void; timer: NodeJS.Timeout }
   >();
   private connectPromise?: Promise<void>;
+  private reconnectTimer?: NodeJS.Timeout;
 
   constructor(
     private readonly config: Config,
@@ -285,19 +286,39 @@ export class ShareDBClient extends EventEmitter {
   }
 
   private scheduleReconnect(resubscribe: boolean): void {
+    if (this.reconnectTimer) return;
+
     const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30_000);
     this.reconnectAttempts += 1;
-    setTimeout(() => {
+
+    if (this.reconnectAttempts > 5) {
+      console.warn(
+        `[wanderdog] Reconnection has failed ${this.reconnectAttempts} times consecutively. Delaying next attempt by ${delay / 1000}s.`,
+      );
+    }
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = undefined;
       if (this.closedByUser) return;
       this.doConnect()
         .then(() => {
+          this.reconnectAttempts = 0;
           if (resubscribe) {
             void this.subscribe().then(() => this.emit("reconnected"));
           } else {
             this.emit("reconnected");
           }
         })
-        .catch(() => this.scheduleReconnect(resubscribe));
+        .catch((err) => {
+          if (err instanceof WanderlogAuthError) {
+            console.error(
+              `[wanderdog] Permanent reconnection failure: Auth expired. Stopping reconnection.`,
+            );
+            this.failAllPending(err);
+            return;
+          }
+          this.scheduleReconnect(resubscribe);
+        });
     }, delay);
   }
 
@@ -390,6 +411,10 @@ export class ShareDBClient extends EventEmitter {
   close(): void {
     this.closedByUser = true;
     this.subscribed = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = undefined;
+    }
     this.failAllPending(new WanderlogError("Client closed", "ws_closed"));
     this.ws?.close();
   }
