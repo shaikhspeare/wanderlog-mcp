@@ -101,6 +101,10 @@ and a ryokan in Shinjuku."
 | `wanderlog_remove_place` | Remove a place by natural-language reference |
 | `wanderlog_update_trip_dates` | Change a trip's date range |
 | `wanderlog_rename_day` | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`) |
+| `wanderlog_list_journal` | List journal (travelogue) stops, optionally filtered by title or date |
+| `wanderlog_add_journal` | Add a journal stop: a place + date/time + text entry |
+| `wanderlog_edit_journal` | Edit a journal stop's title, text, or date/time (or the journal summary) |
+| `wanderlog_remove_journal` | Remove a journal stop by title (with an optional date filter) |
 
 ## Prerequisites
 

@@ -196,6 +196,29 @@ export type Geo = {
   bounds?: [number, number, number, number];
 };
 
+/**
+ * A stop in a trip's journal (travelogue). Each stop pins a place with a
+ * timestamp and a rich-text entry; `media` holds uploaded photos. Only the
+ * fields we read or edit are typed — the index signature preserves the rest.
+ */
+export type JournalStop = {
+  id: number;
+  type: string;
+  title?: string;
+  /** ISO datetime with a destination timezone offset, e.g. "2026-06-14T09:00+08:00". */
+  dateTime?: string;
+  place?: PlaceData;
+  text?: QuillDelta;
+  media?: unknown[];
+  [k: string]: unknown;
+};
+
+export type Journal = {
+  stops?: JournalStop[];
+  summary?: string;
+  [k: string]: unknown;
+};
+
 export type TripPlan = {
   id: number;
   key: string;
@@ -216,7 +239,7 @@ export type TripPlan = {
     sections: Section[];
     options?: unknown;
     budget?: Budget;
-    journal?: unknown;
+    journal?: Journal;
   };
   schemaVersion: number;
   createdAt: string;
