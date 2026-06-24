@@ -4,6 +4,7 @@
 [![npm downloads](https://img.shields.io/npm/dm/wanderlog-mcp)](https://www.npmjs.com/package/wanderlog-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D22-brightgreen)](https://nodejs.org/)
+[![Coverage Status](https://coveralls.io/repos/github/shaikhspeare/wanderlog-mcp/badge.svg?branch=main)](https://coveralls.io/github/shaikhspeare/wanderlog-mcp?branch=main)
 
 An MCP server that lets Claude (or any MCP-compatible agent) view and build [Wanderlog](https://wanderlog.com) trip itineraries through conversation.
 
