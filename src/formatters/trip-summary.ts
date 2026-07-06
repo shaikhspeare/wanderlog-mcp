@@ -1,3 +1,4 @@
+import { tripForwardingEmail } from "../forwarding-email.js";
 import type {
   Block,
   ChecklistBlock,
@@ -36,8 +37,10 @@ export function formatTripList(
       const lines = [
         `Title:    ${t.title}`,
         `Key:      ${t.key}`,
+        `ID:       ${t.id}`,
         `Dates:    ${t.startDate ?? "?"} → ${t.endDate ?? "?"}`,
         `Places:   ${t.placeCount ?? 0}`,
+        `Email:    ${tripForwardingEmail(t.id)}`,
       ];
       if (t.user) lines.push(`Owner:    ${t.user.username}`);
       if (t.editedAt) lines.push(`Edited:   ${t.editedAt}`);
@@ -129,7 +132,13 @@ function formatTripHeader(trip: TripPlan, format: ResponseFormat): string {
   const base = `${trip.title} · ${dates} · ${trip.days} days · ${trip.placeCount} places`;
   if (format === "concise") return base;
 
-  const extras: string[] = [base, `Key: ${trip.key}`, `Privacy: ${trip.privacy}`];
+  const extras: string[] = [
+    base,
+    `Key: ${trip.key}`,
+    `ID: ${trip.id}`,
+    `Privacy: ${trip.privacy}`,
+    `Forwarding email: ${tripForwardingEmail(trip.id)}`,
+  ];
   const contributorNames = trip.contributors?.map((c) => c.username).join(", ");
   if (contributorNames) extras.push(`Contributors: ${contributorNames}`);
   return extras.join("\n");

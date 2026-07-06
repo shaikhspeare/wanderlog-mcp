@@ -82,6 +82,7 @@ and a ryokan in Shinjuku."
 | `wanderlog_list_trips` | List trips in your account |
 | `wanderlog_get_trip` | View a full itinerary, or filter to a single day |
 | `wanderlog_get_trip_url` | Get a shareable wanderlog.com link |
+| `wanderlog_get_trip_forwarding_email` | Get a trip's `trip+<id>@wanderlog.com` import address |
 | `wanderlog_search_places` | Find real-world places near a trip's destination |
 | `wanderlog_search_guides` | List user-written travel guides for a destination, with fallback suggestions when none exist |
 | `wanderlog_get_guide` | Read the full content of a public Wanderlog guide (sections, places, notes) |
@@ -92,11 +93,18 @@ and a ryokan in Shinjuku."
 | `wanderlog_remove_note` | Remove a standalone note block by natural-language reference |
 | `wanderlog_add_hotel` | Add a hotel booking with check-in/check-out dates |
 | `wanderlog_add_checklist` | Add a pre-trip or per-day checklist |
-| `wanderlog_add_expense` | Log a budget expense (amount, category, currency) linked to a place |
+| `wanderlog_add_expense` | Log a budget expense (amount, category, currency), optionally linked to a place |
+| `wanderlog_list_expenses` | List budget expenses, optionally filtered by description / date / amount / currency |
+| `wanderlog_remove_expense` | Remove a budget expense by description (with optional date / amount / currency filters) |
+| `wanderlog_edit_expense` | Change a budget expense's description, amount, currency, category, or date |
 | `wanderlog_annotate_place` | Update an existing place with a note, start/end time, or both |
 | `wanderlog_remove_place` | Remove a place by natural-language reference |
 | `wanderlog_update_trip_dates` | Change a trip's date range |
 | `wanderlog_rename_day` | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`) |
+| `wanderlog_list_journal` | List journal (travelogue) stops, optionally filtered by title or date |
+| `wanderlog_add_journal` | Add a journal stop: a place + date/time + text entry |
+| `wanderlog_edit_journal` | Edit a journal stop's title, text, or date/time (or the journal summary) |
+| `wanderlog_remove_journal` | Remove a journal stop by title (with an optional date filter) |
 
 ## Prerequisites
 

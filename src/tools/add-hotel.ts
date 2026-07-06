@@ -80,6 +80,7 @@ export async function addHotel(
       );
     }
     const detail: PlaceData = await ctx.rest.getPlaceDetails(predictions[0]!.place_id);
+    const imageKeys = await ctx.rest.getPlacePhotos(detail);
 
     const block = buildPlaceBlock(detail, userId, {
       hotel: {
@@ -91,13 +92,11 @@ export async function addHotel(
     });
 
     const existing = findHotelsSection(trip);
+    const blockPath = existing
+      ? ["itinerary", "sections", existing.index, "blocks", existing.section.blocks.length]
+      : ["itinerary", "sections", 1, "blocks", 0];
     const ops: Json0Op[] = existing
-      ? [
-          {
-            p: ["itinerary", "sections", existing.index, "blocks", existing.section.blocks.length],
-            li: block,
-          },
-        ]
+      ? [{ p: blockPath, li: block }]
       : [
           {
             // Insert a new hotels section after the Notes section (index 1).
@@ -116,6 +115,9 @@ export async function addHotel(
             },
           },
         ];
+    if (imageKeys.length > 0) {
+      ops.push({ p: [...blockPath, "imageKeys"], oi: imageKeys });
+    }
 
     await submitOp(ctx, args.trip_key, ops);
 

@@ -113,6 +113,31 @@ describe("applyOp – list delete (ld)", () => {
       expect((err as WanderlogError).code).toBe("ot_path_invalid");
     }
   });
+
+  it("ld with reordered properties succeeds using isDeepStrictEqual", () => {
+    const doc = fresh(queenstownTrip);
+    const ldReordered = {
+      type: "place",
+      id: 321690565,
+      place: {
+        place_id: "ChIJrwm7l7Tj1KkRtwIpvNpNEQs",
+        geometry: { location: { lng: 168.6607345, lat: -45.0371873 } },
+        types: ["park"],
+        name: "Queenstown Gardens",
+        formatted_address: "Unnamed Road, 9300, New Zealand",
+        rating: 4.8,
+        user_ratings_total: 1566,
+      },
+    };
+    const ops: Json0Op[] = [
+      {
+        p: ["itinerary", "sections", 2, "blocks", 0],
+        ld: ldReordered,
+      },
+    ];
+    const next = applyOp(doc, ops);
+    expect(next.itinerary.sections[2]!.blocks).toHaveLength(0);
+  });
 });
 
 describe("applyOp – object insert (oi)", () => {
