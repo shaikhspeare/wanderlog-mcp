@@ -11,6 +11,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      # Pin @types/node to the minimum supported Node major (engines >=22):
+      # newer types let Node-26-only APIs typecheck while crashing on Node 22
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "github-actions"
     directory: "/"
