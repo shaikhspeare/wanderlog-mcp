@@ -22,7 +22,7 @@ describe("ShareDBClient reconnect logic", () => {
     } as any;
     const client = new ShareDBClient(config, "tripA");
 
-    let rejectErr = new WanderlogAuthError();
+    const rejectErr = new WanderlogAuthError();
     const doConnectSpy = vi.spyOn(client as any, "doConnect").mockRejectedValue(rejectErr);
     const failAllPendingSpy = vi.spyOn(client as any, "failAllPending").mockImplementation(() => {});
 
