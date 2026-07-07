@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
 import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
-import {
-  findStopMatches,
-  formatStop,
-  getJournalStops,
-} from "../../src/tools/journal-shared.ts";
+import { findStopMatches, formatStop, getJournalStops } from "../../src/tools/journal-shared.ts";
 import { listJournal } from "../../src/tools/list-journal.ts";
 import { addJournal } from "../../src/tools/add-journal.ts";
 import { editJournal } from "../../src/tools/edit-journal.ts";
@@ -32,7 +28,8 @@ function makeFakeContext(
     rest: {
       searchPlacesAutocomplete:
         rest.searchPlacesAutocomplete ?? (async () => [{ place_id: "ChIJnew", description: "X" }]),
-      getPlaceDetails: rest.getPlaceDetails ?? (async (id: string) => ({ name: "New Place", place_id: id })),
+      getPlaceDetails:
+        rest.getPlaceDetails ?? (async (id: string) => ({ name: "New Place", place_id: id })),
     },
     pool: {
       get: () => ({
@@ -139,7 +136,11 @@ describe("listJournal", () => {
 // ---------------------------------------------------------------------------
 
 describe("addJournal", () => {
-  const noSearch = { searchPlacesAutocomplete: async () => { throw new Error("should not search"); } };
+  const noSearch = {
+    searchPlacesAutocomplete: async () => {
+      throw new Error("should not search");
+    },
+  };
 
   it("reuses an existing itinerary place without searching", async () => {
     const { ctx, submittedOps } = makeFakeContext(journalTrip, noSearch);

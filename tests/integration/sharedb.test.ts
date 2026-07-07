@@ -38,9 +38,7 @@ describe("ShareDBClient (live)", () => {
   it("submit throws cleanly when called before subscribe", async () => {
     client = new ShareDBClient(loadConfig(), TRIP_KEY);
     await client.connect();
-    await expect(
-      client.submit([{ p: ["title"], r: "noop" }]),
-    ).rejects.toThrow(/subscrib/i);
+    await expect(client.submit([{ p: ["title"], r: "noop" }])).rejects.toThrow(/subscrib/i);
   });
 
   it("submit rejects an empty op array", async () => {

@@ -2,18 +2,30 @@ import { WanderlogValidationError } from "../errors.js";
 import type { Section, TripPlan } from "../types.js";
 
 const MONTHS: Record<string, number> = {
-  jan: 1, january: 1,
-  feb: 2, february: 2,
-  mar: 3, march: 3,
-  apr: 4, april: 4,
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
   may: 5,
-  jun: 6, june: 6,
-  jul: 7, july: 7,
-  aug: 8, august: 8,
-  sep: 9, sept: 9, september: 9,
-  oct: 10, october: 10,
-  nov: 11, november: 11,
-  dec: 12, december: 12,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
 };
 
 /**
@@ -94,13 +106,10 @@ function pad(n: number): string {
 }
 
 function outOfRange(trip: TripPlan, detail: string): WanderlogValidationError {
-  return new WanderlogValidationError(
-    `Day reference out of range: ${detail}`,
-    {
-      hint: `Trip "${trip.title}" runs ${trip.startDate} to ${trip.endDate} (${trip.days} days).`,
-      followUps: [
-        `Call wanderlog_get_trip with trip_key "${trip.key}" (no day filter) to see the available dates, then retry with a valid day.`,
-      ],
-    },
-  );
+  return new WanderlogValidationError(`Day reference out of range: ${detail}`, {
+    hint: `Trip "${trip.title}" runs ${trip.startDate} to ${trip.endDate} (${trip.days} days).`,
+    followUps: [
+      `Call wanderlog_get_trip with trip_key "${trip.key}" (no day filter) to see the available dates, then retry with a valid day.`,
+    ],
+  });
 }

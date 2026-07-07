@@ -40,7 +40,9 @@ export const addPlaceInputSchema = {
     .string()
     .regex(/^\d{2}:\d{2}$/, "must be HH:mm")
     .optional()
-    .describe("Optional start time in HH:mm format (e.g. '09:00'). Adds a scheduled time to the place."),
+    .describe(
+      "Optional start time in HH:mm format (e.g. '09:00'). Adds a scheduled time to the place.",
+    ),
   end_time: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "must be HH:mm")
@@ -88,9 +90,7 @@ export async function addPlace(
       const daySection = resolveDay(trip, args.day);
       const found = findDaySectionByDate(trip, daySection.date!);
       if (!found) {
-        throw new WanderlogValidationError(
-          `Day ${args.day} not found in trip`,
-        );
+        throw new WanderlogValidationError(`Day ${args.day} not found in trip`);
       }
       targetIndex = found.index;
       targetLabel = `day ${daySection.date}`;
@@ -143,9 +143,7 @@ export async function addPlace(
     const section = trip.itinerary.sections[targetIndex]!;
     const insertIndex = section.blocks.length;
     const blockPath = ["itinerary", "sections", targetIndex, "blocks", insertIndex];
-    const ops: Json0Op[] = [
-      { p: blockPath, li: block },
-    ];
+    const ops: Json0Op[] = [{ p: blockPath, li: block }];
     // iOS/iPadOS native apps render thumbnails strictly from `imageKeys`.
     // Submit together with the `li` so no client ever sees a keyless block.
     if (imageKeys.length > 0) {
@@ -204,4 +202,3 @@ export async function addPlace(
     return { content: [{ type: "text", text: msg }], isError: true };
   }
 }
-

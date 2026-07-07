@@ -10,10 +10,7 @@ async function main() {
   try {
     ctx = createContext();
   } catch (err) {
-    const msg =
-      err instanceof WanderlogError
-        ? err.toUserMessage()
-        : (err as Error).message;
+    const msg = err instanceof WanderlogError ? err.toUserMessage() : (err as Error).message;
     process.stderr.write(`[wanderdog] startup failed: ${msg}\n`);
     process.exit(1);
   }
@@ -22,14 +19,9 @@ async function main() {
     const user = await ctx.rest.getUser();
     ctx.userId = user.id;
     ctx.authenticated = true;
-    process.stderr.write(
-      `[wanderdog] authenticated as ${user.username} (${user.id})\n`,
-    );
+    process.stderr.write(`[wanderdog] authenticated as ${user.username} (${user.id})\n`);
   } catch (err) {
-    const msg =
-      err instanceof WanderlogError
-        ? err.toUserMessage()
-        : (err as Error).message;
+    const msg = err instanceof WanderlogError ? err.toUserMessage() : (err as Error).message;
     process.stderr.write(
       `[wanderdog] auth probe failed: ${msg}\n` +
         `[wanderdog] server will start but all tools will require valid credentials\n`,

@@ -20,7 +20,9 @@ export const createTripInputSchema = {
   title: z
     .string()
     .optional()
-    .describe("Optional custom title. If omitted, Wanderlog auto-generates one like 'Trip to Lisbon'."),
+    .describe(
+      "Optional custom title. If omitted, Wanderlog auto-generates one like 'Trip to Lisbon'.",
+    ),
   privacy: z
     .enum(["private", "friends", "public"])
     .default("private")
@@ -88,7 +90,11 @@ export async function createTrip(
     const locationLabel = top.stateName
       ? `${top.name}, ${top.stateName}, ${top.countryName}`
       : `${top.name}, ${top.countryName ?? ""}`.trim().replace(/,\s*$/, "");
-    const days = result.key ? Math.round((new Date(args.end_date).getTime() - new Date(args.start_date).getTime()) / 86_400_000) + 1 : 0;
+    const days = result.key
+      ? Math.round(
+          (new Date(args.end_date).getTime() - new Date(args.start_date).getTime()) / 86_400_000,
+        ) + 1
+      : 0;
     const text = [
       `Created "${result.title}" for ${locationLabel}. Dates: ${args.start_date} → ${args.end_date} (${days} days). Key: ${result.key}`,
       ``,

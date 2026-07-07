@@ -13,10 +13,7 @@ import { isPlaceBlock } from "../types.js";
  */
 const submitLocks = new Map<string, Promise<unknown>>();
 
-async function withSubmitLock<T>(
-  tripKey: string,
-  fn: () => Promise<T>,
-): Promise<T> {
+async function withSubmitLock<T>(tripKey: string, fn: () => Promise<T>): Promise<T> {
   const prev = submitLocks.get(tripKey) ?? Promise.resolve();
   // Chain regardless of whether the previous op succeeded or failed —
   // one failed op should not permanently block the queue.
@@ -42,11 +39,7 @@ async function withSubmitLock<T>(
  *   next read refetches a fresh snapshot from the server.
  * - On success, cache.applyLocalOp() is called with the server-accepted version.
  */
-export async function submitOp(
-  ctx: AppContext,
-  tripKey: string,
-  ops: Json0Op[],
-): Promise<void> {
+export async function submitOp(ctx: AppContext, tripKey: string, ops: Json0Op[]): Promise<void> {
   return withSubmitLock(tripKey, async () => {
     const client = ctx.pool.get(tripKey);
     if (!client.isSubscribed) {
@@ -83,14 +76,11 @@ async function submitWithRateLimitRetry(
       await client.submit(ops);
       return;
     } catch (err) {
-      const isRateLimit =
-        err instanceof WanderlogError && err.code === "rate_limited";
+      const isRateLimit = err instanceof WanderlogError && err.code === "rate_limited";
       if (!isRateLimit || attempt >= RATE_LIMIT_RETRY_DELAYS_MS.length) {
         throw err;
       }
-      await new Promise((r) =>
-        setTimeout(r, RATE_LIMIT_RETRY_DELAYS_MS[attempt]),
-      );
+      await new Promise((r) => setTimeout(r, RATE_LIMIT_RETRY_DELAYS_MS[attempt]));
       attempt += 1;
     }
   }
@@ -103,10 +93,7 @@ export function generateBlockId(): number {
 
 export function requireUserId(ctx: AppContext): number {
   if (ctx.userId == null) {
-    throw new WanderlogError(
-      "User ID not available — auth probe has not completed",
-      "no_user_id",
-    );
+    throw new WanderlogError("User ID not available — auth probe has not completed", "no_user_id");
   }
   return ctx.userId;
 }
@@ -209,10 +196,7 @@ export function findDaySectionByDate(
  *   2. The trip's first associated geo (from /api/tripPlans/{key} resources)
  *   3. Null if both are absent
  */
-export function findTripCenter(
-  trip: TripPlan,
-  geos?: Geo[],
-): { lat: number; lng: number } | null {
+export function findTripCenter(trip: TripPlan, geos?: Geo[]): { lat: number; lng: number } | null {
   for (const section of trip.itinerary.sections) {
     for (const block of section.blocks) {
       if (!isPlaceBlock(block)) continue;

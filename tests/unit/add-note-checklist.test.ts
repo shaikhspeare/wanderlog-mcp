@@ -1,17 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import { formatBlockLine } from "../../src/formatters/trip-summary.ts";
-import {
-  buildNoteBlock,
-  buildChecklistBlock,
-  findTargetSection,
-} from "../../src/tools/shared.ts";
-import type {
-  Block,
-  ChecklistBlock,
-  NoteBlock,
-  TripPlan,
-} from "../../src/types.ts";
+import { buildNoteBlock, buildChecklistBlock, findTargetSection } from "../../src/tools/shared.ts";
+import type { ChecklistBlock, NoteBlock, TripPlan } from "../../src/types.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
 
 function fresh(trip: TripPlan): TripPlan {
@@ -40,11 +31,7 @@ describe("buildNoteBlock", () => {
 
 describe("buildChecklistBlock", () => {
   it("produces the correct shape with items", () => {
-    const block = buildChecklistBlock(
-      ["passport", "adapter", "sunscreen"],
-      "Packing list",
-      42,
-    );
+    const block = buildChecklistBlock(["passport", "adapter", "sunscreen"], "Packing list", 42);
     expect(block.type).toBe("checklist");
     expect(block.title).toBe("Packing list");
     expect(block.addedBy).toEqual({ type: "user", userId: 42 });
@@ -115,9 +102,7 @@ describe("applyOp – note block li", () => {
     const doc = fresh(checklistTrip);
     const block = buildNoteBlock(3656632);
     const dayIdx = 3; // day 2026-06-02 (empty)
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block }];
     const next = applyOp(doc, ops);
     expect(next.itinerary.sections[dayIdx]!.blocks).toHaveLength(1);
     expect(next.itinerary.sections[dayIdx]!.blocks[0]!.type).toBe("note");
@@ -134,9 +119,7 @@ describe("applyOp – rich-text subtype", () => {
     // First insert a note block
     const block = buildNoteBlock(3656632);
     const dayIdx = 3;
-    let next = applyOp(doc, [
-      { p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block },
-    ]);
+    let next = applyOp(doc, [{ p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block }]);
 
     // Then apply rich-text op
     next = applyOp(next, [
@@ -213,9 +196,7 @@ describe("applyOp – checklist block li", () => {
     const doc = fresh(checklistTrip);
     const block = buildChecklistBlock(["item one", "item two"], "My list", 3656632);
     const dayIdx = 3; // empty day
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block },
-    ];
+    const ops: Json0Op[] = [{ p: ["itinerary", "sections", dayIdx, "blocks", 0], li: block }];
     const next = applyOp(doc, ops);
     const inserted = next.itinerary.sections[dayIdx]!.blocks[0] as ChecklistBlock;
     expect(inserted.type).toBe("checklist");

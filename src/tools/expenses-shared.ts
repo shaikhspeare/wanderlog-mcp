@@ -30,10 +30,7 @@ export function getExpenses(trip: TripPlan): ExpenseMatch[] {
  * to disambiguate duplicates. An empty/omitted description matches every
  * expense, so `list_expenses` can call with filters alone.
  */
-export function findExpenseMatches(
-  trip: TripPlan,
-  filters: ExpenseFilters,
-): ExpenseMatch[] {
+export function findExpenseMatches(trip: TripPlan, filters: ExpenseFilters): ExpenseMatch[] {
   const description = filters.description?.toLowerCase();
   const currency = filters.currency?.toUpperCase();
 

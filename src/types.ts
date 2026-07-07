@@ -113,12 +113,7 @@ export type UnknownBlock = {
 };
 
 export type Block =
-  | PlaceBlock
-  | NoteBlock
-  | ChecklistBlock
-  | FlightBlock
-  | TrainBlock
-  | UnknownBlock;
+  PlaceBlock | NoteBlock | ChecklistBlock | FlightBlock | TrainBlock | UnknownBlock;
 
 export function isPlaceBlock(block: Block): block is PlaceBlock {
   return block.type === "place" && "place" in block && !!(block as PlaceBlock).place;
@@ -128,13 +123,7 @@ export function isChecklistBlock(block: Block): block is ChecklistBlock {
   return block.type === "checklist" && "items" in block;
 }
 
-export type SectionType =
-  | "textOnly"
-  | "normal"
-  | "hotels"
-  | "flights"
-  | "transit"
-  | string;
+export type SectionType = "textOnly" | "normal" | "hotels" | "flights" | "transit" | string;
 
 export type Section = {
   id: number;

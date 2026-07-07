@@ -36,9 +36,10 @@ export async function listTrips(
     const text = formatTripList(trips, args.response_format ?? "concise");
     return { content: [{ type: "text", text }] };
   } catch (err) {
-    const e = err instanceof WanderlogError
-      ? err.toUserMessage()
-      : `Unexpected error: ${(err as Error).message}`;
+    const e =
+      err instanceof WanderlogError
+        ? err.toUserMessage()
+        : `Unexpected error: ${(err as Error).message}`;
     return { content: [{ type: "text", text: e }], isError: true };
   }
 }

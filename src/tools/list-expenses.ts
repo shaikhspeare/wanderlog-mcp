@@ -60,8 +60,7 @@ export async function listExpenses(
     });
 
     if (matches.length === 0) {
-      const filtered =
-        args.description || args.date || args.amount !== undefined || args.currency;
+      const filtered = args.description || args.date || args.amount !== undefined || args.currency;
       const text = filtered
         ? `No expenses match those filters in "${trip.title}".`
         : `No expenses logged in "${trip.title}" yet. Add one with wanderlog_add_expense.`;
@@ -71,9 +70,7 @@ export async function listExpenses(
     const lines = matches.map((m, i) => `  ${i + 1}. ${formatExpense(m.expense)}`).join("\n");
     const noun = matches.length === 1 ? "expense" : "expenses";
     return {
-      content: [
-        { type: "text", text: `${matches.length} ${noun} in "${trip.title}":\n${lines}` },
-      ],
+      content: [{ type: "text", text: `${matches.length} ${noun} in "${trip.title}":\n${lines}` }],
     };
   } catch (err) {
     const msg =

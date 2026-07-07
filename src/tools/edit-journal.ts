@@ -24,7 +24,9 @@ export const editJournalInputSchema = {
   new_text: z
     .string()
     .optional()
-    .describe("New journal entry text for the stop (replaces the existing text). Omit to leave unchanged."),
+    .describe(
+      "New journal entry text for the stop (replaces the existing text). Omit to leave unchanged.",
+    ),
   new_date: z
     .string()
     .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
@@ -66,7 +68,9 @@ type Args = {
 
 /** od+oi replacement for an existing key; oi-only insert when the key is absent. */
 function replaceField(path: (string | number)[], oldValue: unknown, newValue: unknown): Json0Op {
-  return oldValue === undefined ? { p: path, oi: newValue } : { p: path, od: oldValue, oi: newValue };
+  return oldValue === undefined
+    ? { p: path, oi: newValue }
+    : { p: path, od: oldValue, oi: newValue };
 }
 
 /** Rebuilds a stop's dateTime from new date/time parts, preserving the timezone offset. */

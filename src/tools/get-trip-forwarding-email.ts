@@ -4,10 +4,7 @@ import { WanderlogError } from "../errors.js";
 import { tripForwardingEmail } from "../forwarding-email.js";
 
 export const getTripForwardingEmailInputSchema = {
-  trip_key: z
-    .string()
-    .min(1)
-    .describe("The trip key from wanderlog_list_trips."),
+  trip_key: z.string().min(1).describe("The trip key from wanderlog_list_trips."),
 };
 
 export const getTripForwardingEmailDescription = `

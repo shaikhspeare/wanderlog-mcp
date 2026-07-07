@@ -46,20 +46,16 @@ describe("buildTripUrl", () => {
   });
 
   it("builds a view URL", () => {
-    expect(buildTripUrl(queenstownTrip, "view")).toBe(
-      "https://wanderlog.com/plan/qsqxrlrzov",
-    );
+    expect(buildTripUrl(queenstownTrip, "view")).toBe("https://wanderlog.com/plan/qsqxrlrzov");
   });
 
   it("builds a suggest URL", () => {
-    expect(buildTripUrl(queenstownTrip, "suggest")).toBe(
-      "https://wanderlog.com/plan/zztknrxgjxrv",
-    );
+    expect(buildTripUrl(queenstownTrip, "suggest")).toBe("https://wanderlog.com/plan/zztknrxgjxrv");
   });
 
   it("honors a custom base URL", () => {
-    expect(
-      buildTripUrl(queenstownTrip, "edit", "https://staging.wanderlog.com"),
-    ).toBe("https://staging.wanderlog.com/plan/vzyrsyhgxvonvxcz");
+    expect(buildTripUrl(queenstownTrip, "edit", "https://staging.wanderlog.com")).toBe(
+      "https://staging.wanderlog.com/plan/vzyrsyhgxvonvxcz",
+    );
   });
 });

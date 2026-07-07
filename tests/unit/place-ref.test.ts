@@ -41,9 +41,7 @@ describe("resolvePlaceRef", () => {
     if (result.kind !== "unique") return;
     expect(result.match.section.type).toBe("hotels");
     if (isPlaceBlock(result.match.block)) {
-      expect(result.match.block.place.name).toBe(
-        "Rendezvous Heritage Hotel Queenstown",
-      );
+      expect(result.match.block.place.name).toBe("Rendezvous Heritage Hotel Queenstown");
     }
   });
 
@@ -53,9 +51,7 @@ describe("resolvePlaceRef", () => {
     if (result.kind !== "unique") return;
     expect(result.match.section.type).toBe("hotels");
     if (isPlaceBlock(result.match.block)) {
-      expect(result.match.block.place.name).toBe(
-        "Far East Village Hotel Tokyo, Asakusa",
-      );
+      expect(result.match.block.place.name).toBe("Far East Village Hotel Tokyo, Asakusa");
     }
   });
 
@@ -109,10 +105,7 @@ describe("resolvePlaceRef", () => {
   });
 
   it("returns none for a reference that matches nothing", () => {
-    const result = resolvePlaceRef(
-      queenstownTrip,
-      "nonexistent place name xyz123",
-    );
+    const result = resolvePlaceRef(queenstownTrip, "nonexistent place name xyz123");
     expect(result.kind).toBe("none");
   });
 
@@ -154,9 +147,7 @@ describe("resolvePlaceRef", () => {
     expect(result.kind).toBe("ambiguous");
     if (result.kind !== "ambiguous") return;
     expect(result.candidates.length).toBe(2);
-    const names = result.candidates.map((c) =>
-      isPlaceBlock(c.block) ? c.block.place.name : "",
-    );
+    const names = result.candidates.map((c) => (isPlaceBlock(c.block) ? c.block.place.name : ""));
     expect(names).toContain("Vudu Cafe & Larder");
     expect(names).toContain("Bespoke Cafe");
   });

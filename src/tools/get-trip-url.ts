@@ -4,10 +4,7 @@ import { WanderlogError } from "../errors.js";
 import type { TripPlan } from "../types.js";
 
 export const getTripUrlInputSchema = {
-  trip_key: z
-    .string()
-    .min(1)
-    .describe("The trip key from wanderlog_list_trips."),
+  trip_key: z.string().min(1).describe("The trip key from wanderlog_list_trips."),
   mode: z
     .enum(["edit", "view", "suggest"])
     .default("edit")

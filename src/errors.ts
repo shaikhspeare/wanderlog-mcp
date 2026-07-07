@@ -8,11 +8,7 @@ export class WanderlogError extends Error {
   readonly hint?: string;
   readonly followUps?: string[];
 
-  constructor(
-    message: string,
-    code: string,
-    hintOrOptions?: string | ErrorOptions,
-  ) {
+  constructor(message: string, code: string, hintOrOptions?: string | ErrorOptions) {
     super(message);
     this.name = "WanderlogError";
     this.code = code;
