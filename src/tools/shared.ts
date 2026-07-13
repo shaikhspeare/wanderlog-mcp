@@ -297,6 +297,13 @@ export function validateTimeInputs(startTime?: string, endTime?: string): void {
       `Invalid end_time: "${endTime}". Hours must be between 00 and 23, and minutes between 00 and 59.`,
     );
   }
+  // Format is validated above, so a lexicographic compare on zero-padded HH:mm
+  // is equivalent to a chronological compare.
+  if (startTime && endTime && startTime >= endTime) {
+    throw new WanderlogValidationError(
+      `end_time (${endTime}) must be after start_time (${startTime}).`,
+    );
+  }
 }
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
@@ -311,4 +318,14 @@ export function isValidDate(dateStr: string): boolean {
     date.getUTCMonth() === month! - 1 &&
     date.getUTCDate() === day
   );
+}
+
+export function validateDateRange(startDate: string, endDate: string): void {
+  // Both dates are validated as YYYY-MM-DD before this runs, so a
+  // lexicographic compare matches chronological order.
+  if (startDate > endDate) {
+    throw new WanderlogValidationError(
+      `end_date (${endDate}) must be on or after start_date (${startDate}).`,
+    );
+  }
 }
