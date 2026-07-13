@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
 import type { Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
-import {
-  extractPlainText,
-  findNoteMatches,
-  removeNote,
-} from "../../src/tools/remove-note.ts";
+import { extractPlainText, findNoteMatches, removeNote } from "../../src/tools/remove-note.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
 import { mixedBlocksTrip } from "../fixtures/mixed-blocks-trip.ts";
 

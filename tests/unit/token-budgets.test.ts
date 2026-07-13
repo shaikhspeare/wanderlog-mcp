@@ -53,9 +53,7 @@ describe("token budgets — formatter output fits within budgets", () => {
       BUDGETS.getTripConciseSmall.trip.days,
     );
     const out = formatTrip(trip, "concise");
-    expect(approxTokens(out)).toBeLessThanOrEqual(
-      BUDGETS.getTripConciseSmall.tokens,
-    );
+    expect(approxTokens(out)).toBeLessThanOrEqual(BUDGETS.getTripConciseSmall.tokens);
   });
 
   it("concise list_trips stays under ~40 tokens per entry", () => {

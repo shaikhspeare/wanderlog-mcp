@@ -2,11 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
 import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
-import {
-  findExpenseMatches,
-  formatExpense,
-  getExpenses,
-} from "../../src/tools/expenses-shared.ts";
+import { findExpenseMatches, formatExpense, getExpenses } from "../../src/tools/expenses-shared.ts";
 import { listExpenses } from "../../src/tools/list-expenses.ts";
 import { removeExpense } from "../../src/tools/remove-expense.ts";
 import { editExpense } from "../../src/tools/edit-expense.ts";
@@ -108,7 +104,10 @@ describe("findExpenseMatches", () => {
   });
 
   it("narrows duplicates with a case-insensitive currency filter", () => {
-    const matches = findExpenseMatches(fresh(budgetTrip), { description: "ichiran", currency: "jpy" });
+    const matches = findExpenseMatches(fresh(budgetTrip), {
+      description: "ichiran",
+      currency: "jpy",
+    });
     expect(matches).toHaveLength(1);
     expect(matches[0]!.expense.amount.currencyCode).toBe("JPY");
   });

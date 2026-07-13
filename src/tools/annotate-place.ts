@@ -7,10 +7,7 @@ import { isPlaceBlock } from "../types.js";
 import { submitOp, validateTimeInputs } from "./shared.js";
 
 export const annotatePlaceInputSchema = {
-  trip_key: z
-    .string()
-    .min(1)
-    .describe("The trip containing the place."),
+  trip_key: z.string().min(1).describe("The trip containing the place."),
   place: z
     .string()
     .min(1)
@@ -20,7 +17,9 @@ export const annotatePlaceInputSchema = {
   note: z
     .string()
     .optional()
-    .describe("Set or replace the inline note on this place. Practical context: transit, tips, timing, what to see."),
+    .describe(
+      "Set or replace the inline note on this place. Practical context: transit, tips, timing, what to see.",
+    ),
   start_time: z
     .string()
     .regex(/^\d{2}:\d{2}$/, "must be HH:mm")

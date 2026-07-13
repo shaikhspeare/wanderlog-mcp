@@ -34,10 +34,7 @@ function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-function navigateParent(
-  doc: JsonContainer,
-  path: (string | number)[],
-): JsonContainer {
+function navigateParent(doc: JsonContainer, path: (string | number)[]): JsonContainer {
   let current: unknown = doc;
   for (let i = 0; i < path.length - 1; i++) {
     const key = path[i]!;
@@ -82,11 +79,7 @@ function navigateParent(
  * from the UI that carry attributes will lose formatting in our cache, but
  * the server holds the authoritative version.
  */
-function applyRichTextOp(
-  parent: JsonContainer,
-  key: string | number,
-  payload: unknown,
-): void {
+function applyRichTextOp(parent: JsonContainer, key: string | number, payload: unknown): void {
   const target = Array.isArray(parent)
     ? parent[key as number]
     : (parent as Record<string, unknown>)[key as string];
@@ -96,9 +89,7 @@ function applyRichTextOp(
   if (target && typeof target === "object" && "ops" in (target as Record<string, unknown>)) {
     const ops = (target as { ops: Array<{ insert?: string }> }).ops;
     if (Array.isArray(ops)) {
-      current = ops
-        .map((op) => (typeof op.insert === "string" ? op.insert : ""))
-        .join("");
+      current = ops.map((op) => (typeof op.insert === "string" ? op.insert : "")).join("");
     }
   }
 

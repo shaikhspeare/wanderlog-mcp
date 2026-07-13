@@ -8,10 +8,7 @@ import { findDaySectionByDate, submitOp } from "./shared.js";
 
 export const removeNoteInputSchema = {
   trip_key: z.string().min(1).describe("The trip to remove from."),
-  text: z
-    .string()
-    .min(1)
-    .describe("Substring to match against note content (case-insensitive)."),
+  text: z.string().min(1).describe("Substring to match against note content (case-insensitive)."),
   day: z
     .string()
     .optional()

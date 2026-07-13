@@ -24,14 +24,16 @@ describe("ShareDBClient reconnect logic", () => {
 
     const rejectErr = new WanderlogAuthError();
     const doConnectSpy = vi.spyOn(client as any, "doConnect").mockRejectedValue(rejectErr);
-    const failAllPendingSpy = vi.spyOn(client as any, "failAllPending").mockImplementation(() => {});
+    const failAllPendingSpy = vi
+      .spyOn(client as any, "failAllPending")
+      .mockImplementation(() => {});
 
     // Trigger scheduleReconnect
     (client as any).scheduleReconnect(false);
 
     // Initial reconnect is scheduled, wait for the timer to fire (delay is 1000 * 2^0 = 1000ms)
     expect((client as any).reconnectTimer).toBeDefined();
-    
+
     await vi.advanceTimersByTimeAsync(1000);
 
     // doConnect should have been called
@@ -101,8 +103,10 @@ describe("ShareDBClient reconnect logic", () => {
     (client as any).reconnectAttempts = 5;
 
     (client as any).scheduleReconnect(false);
-    
+
     expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
-    expect(consoleWarnSpy.mock.calls[0]![0]).toContain("Reconnection has failed 6 times consecutively");
+    expect(consoleWarnSpy.mock.calls[0]![0]).toContain(
+      "Reconnection has failed 6 times consecutively",
+    );
   });
 });

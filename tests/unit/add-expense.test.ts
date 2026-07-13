@@ -28,7 +28,8 @@ function makeFakeContext(trip: TripPlan): { ctx: AppContext; submittedOps: Json0
   return { ctx, submittedOps };
 }
 
-const liOf = (ops: Json0Op[][]) => ops[0]![0] as { p: (string | number)[]; li: Record<string, any> };
+const liOf = (ops: Json0Op[][]) =>
+  ops[0]![0] as { p: (string | number)[]; li: Record<string, any> };
 
 describe("addExpense — unlinked (no place)", () => {
   it("adds an expense with blockId null and no place in the message", async () => {

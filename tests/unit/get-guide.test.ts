@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
-import {
-  WanderlogError,
-  WanderlogNotFoundError,
-} from "../../src/errors.ts";
+import { WanderlogError, WanderlogNotFoundError } from "../../src/errors.ts";
 import { getGuide } from "../../src/tools/get-guide.ts";
 import type { TripPlan } from "../../src/types.ts";
 
@@ -23,7 +20,12 @@ function tripFixture(): TripPlan {
           blocks: [],
         },
       ],
-      budget: { amount: { amount: 0, currencyCode: "USD" }, expenses: [], payments: [], simplifyDebt: false },
+      budget: {
+        amount: { amount: 0, currencyCode: "USD" },
+        expenses: [],
+        payments: [],
+        simplifyDebt: false,
+      },
     },
   } as unknown as TripPlan;
 }

@@ -2,11 +2,7 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogNotFoundError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import {
-  findExpenseMatches,
-  formatCandidateList,
-  formatExpense,
-} from "./expenses-shared.js";
+import { findExpenseMatches, formatCandidateList, formatExpense } from "./expenses-shared.js";
 import { submitOp } from "./shared.js";
 
 export const removeExpenseInputSchema = {

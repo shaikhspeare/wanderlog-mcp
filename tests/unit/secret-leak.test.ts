@@ -20,11 +20,7 @@ import { RestClient } from "../../src/transport/rest.ts";
  * user-visible output. Find it and stop it — do not loosen the assertion.
  */
 const SENTINEL = "s%3ASENTINEL-COOKIE-VALUE-DO-NOT-LEAK.signaturepart";
-const SENTINEL_FRAGMENTS = [
-  SENTINEL,
-  "SENTINEL-COOKIE-VALUE",
-  "signaturepart",
-];
+const SENTINEL_FRAGMENTS = [SENTINEL, "SENTINEL-COOKIE-VALUE", "signaturepart"];
 
 function containsSentinel(s: string): string | null {
   for (const f of SENTINEL_FRAGMENTS) {
@@ -70,18 +66,14 @@ describe("secret-leak canary — cookie never appears in errors", () => {
       for (const s of surfaces) {
         const hit = containsSentinel(s);
         if (hit) {
-          throw new Error(
-            `secret leak: surface contained '${hit}'\n--- surface ---\n${s}`,
-          );
+          throw new Error(`secret leak: surface contained '${hit}'\n--- surface ---\n${s}`);
         }
       }
     }
   }
 
   it("401 auth errors do not include the cookie", async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response("unauthorized", { status: 401 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response("unauthorized", { status: 401 }));
     await assertNoLeakFromThrowable(() => makeClient().listTrips());
   });
 
@@ -96,9 +88,7 @@ describe("secret-leak canary — cookie never appears in errors", () => {
   });
 
   it("5xx server errors do not include the cookie", async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response("kaboom", { status: 503 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response("kaboom", { status: 503 }));
     await assertNoLeakFromThrowable(() => makeClient().listTrips());
   });
 
@@ -118,17 +108,13 @@ describe("secret-leak canary — cookie never appears in errors", () => {
   });
 
   it("unexpected 4xx status does not include the cookie", async () => {
-    fetchSpy.mockResolvedValueOnce(
-      new Response("teapot", { status: 418 }),
-    );
+    fetchSpy.mockResolvedValueOnce(new Response("teapot", { status: 418 }));
     await assertNoLeakFromThrowable(() => makeClient().listTrips());
   });
 
   it("delete-trip error path does not include the cookie", async () => {
     fetchSpy.mockResolvedValueOnce(new Response("nope", { status: 404 }));
-    await assertNoLeakFromThrowable(() =>
-      makeClient().deleteTrip("abc123"),
-    );
+    await assertNoLeakFromThrowable(() => makeClient().deleteTrip("abc123"));
   });
 });
 

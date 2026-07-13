@@ -79,7 +79,10 @@ async function getOrCreateContext(cookieRaw: string): Promise<AppContext> {
 
 // --- extract cookie from Authorization header or query param ---
 
-function extractCookie(req: { headers: Record<string, string | undefined>; url?: string }): string | null {
+function extractCookie(req: {
+  headers: Record<string, string | undefined>;
+  url?: string;
+}): string | null {
   const auth = req.headers.authorization;
   if (auth) {
     const match = auth.match(/^Bearer\s+(.+)$/i);
@@ -123,10 +126,7 @@ async function main() {
     try {
       ctx = await getOrCreateContext(cookie);
     } catch (err) {
-      const msg =
-        err instanceof WanderlogError
-          ? err.toUserMessage()
-          : (err as Error).message;
+      const msg = err instanceof WanderlogError ? err.toUserMessage() : (err as Error).message;
       console.error(`[wanderdog] auth failed: ${msg}`);
       res.status(403).json({
         jsonrpc: "2.0",

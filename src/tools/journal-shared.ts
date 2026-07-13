@@ -14,9 +14,7 @@ export type StopFilters = {
 
 /** Flattens a QuillDelta to plain text. */
 export function extractStopText(text: QuillDelta | undefined): string {
-  return (text?.ops ?? [])
-    .map((op) => (typeof op.insert === "string" ? op.insert : ""))
-    .join("");
+  return (text?.ops ?? []).map((op) => (typeof op.insert === "string" ? op.insert : "")).join("");
 }
 
 /** The YYYY-MM-DD part of a stop's `dateTime`, or "" if absent. */
@@ -30,7 +28,10 @@ export function stopDate(stop: JournalStop): string {
  * carry accents the user won't type.
  */
 function fold(s: string): string {
-  return s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+  return s
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .toLowerCase();
 }
 
 /**
@@ -104,9 +105,7 @@ function preview(text: string): string {
 export function formatStop(stop: JournalStop): string {
   const title = stop.title?.trim() || stop.place?.name || "(untitled stop)";
   const when =
-    typeof stop.dateTime === "string"
-      ? stop.dateTime.replace("T", " ").slice(0, 16)
-      : "(no date)";
+    typeof stop.dateTime === "string" ? stop.dateTime.replace("T", " ").slice(0, 16) : "(no date)";
   const body = extractStopText(stop.text).trim();
   const bodyLabel = body ? ` — "${preview(body)}"` : "";
   return `${title} — ${when}${bodyLabel}`;

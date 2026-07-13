@@ -69,9 +69,7 @@ export const journalTrip: TripPlan = {
           dateTime: "2026-05-30T09:00+09:00",
           place: { name: "Fushimi Inari Taisha", place_id: "ChIJfushimi" },
           text: { ops: [{ insert: "Hiked the torii gates at dawn." }] },
-          media: [
-            { type: "uploaded", key: "abc123", width: 270, height: 148, mediaType: "image" },
-          ],
+          media: [{ type: "uploaded", key: "abc123", width: 270, height: 148, mediaType: "image" }],
         },
         {
           id: 571059556,

@@ -10,9 +10,7 @@ export const renameDayInputSchema = {
   day: z
     .string()
     .min(1)
-    .describe(
-      'Which day to rename. Accepts "day 3", "May 4", or "2026-05-04".',
-    ),
+    .describe('Which day to rename. Accepts "day 3", "May 4", or "2026-05-04".'),
   heading: z
     .string()
     .describe(
