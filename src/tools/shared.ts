@@ -96,9 +96,51 @@ async function submitWithRateLimitRetry(
   }
 }
 
-/** Wanderlog block IDs are 9-digit numeric. */
+/** Wanderlog block IDs are 9-digit numeric. Sections use the same format. */
 export function generateBlockId(): number {
   return Math.floor(Math.random() * 1_000_000_000);
+}
+
+/**
+ * Build a new custom section matching the shape Wanderlog inserts from its UI.
+ * Always type "normal" / mode "placeList" — day sections are managed by update-trip-dates.
+ */
+export function buildSectionObject(heading: string): Section {
+  return {
+    id: generateBlockId(),
+    type: "normal",
+    mode: "placeList",
+    heading,
+    date: null,
+    blocks: [],
+    text: { ops: [{ insert: "\n" }] },
+    placeMarkerColor: "#3498db",
+    placeMarkerIcon: "map-marker",
+  };
+}
+
+/**
+ * Resolves a natural-language section reference to its index and Section object.
+ * Resolution order:
+ *   1. "places to visit" / "places" → the default placeList section (via findPlacesToVisitSection)
+ *   2. Case-insensitive heading match across all sections
+ * Returns null when no section matches.
+ */
+export function findSectionByRef(
+  trip: TripPlan,
+  ref: string,
+): { index: number; section: Section } | null {
+  const normalized = ref.trim().toLowerCase();
+  if (normalized === "places to visit" || normalized === "places") {
+    return findPlacesToVisitSection(trip);
+  }
+  for (let i = 0; i < trip.itinerary.sections.length; i++) {
+    const s = trip.itinerary.sections[i]!;
+    if (s.heading.trim().toLowerCase() === normalized) {
+      return { index: i, section: s };
+    }
+  }
+  return null;
 }
 
 export function requireUserId(ctx: AppContext): number {
