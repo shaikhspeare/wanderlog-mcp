@@ -66,6 +66,11 @@ import {
   searchPlacesInputSchema,
 } from "./tools/search-places.js";
 import {
+  searchHotels,
+  searchHotelsDescription,
+  searchHotelsInputSchema,
+} from "./tools/search-hotels.js";
+import {
   updateTripDates,
   updateTripDatesDescription,
   updateTripDatesInputSchema,
@@ -165,7 +170,11 @@ of places. A complete itinerary uses these building blocks:
   2. wanderlog_add_note — use ONLY for freestanding commentary between places: neighborhood
      context, multi-stop transit directions, or day-level tips not about a specific place.
      Do NOT use add_note for per-place context — use the "note" param on add_place instead.
-  3. wanderlog_add_hotel — one hotel block covering the full stay
+  3. wanderlog_add_hotel — one hotel block covering the full stay. When the user wants to
+     compare hotels by price or filter by amenities/rating, call wanderlog_search_hotels
+     FIRST — it returns ranked offers across airbnb/expedia/google/kayak with per-vendor
+     deal comparison and a faceted available_filters block — then pass the chosen hotel
+     name to wanderlog_add_hotel.
   4. wanderlog_add_checklist — at least one pre-trip checklist (visa, currency, offline maps,
      return ticket, travel insurance) and per-day checklists for days that need advance prep
   5. wanderlog_add_expense — add estimated costs for meals, entrance fees, transport passes.
@@ -276,6 +285,18 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       getGuide(ctx, args as Parameters<typeof getGuide>[1]),
+    ),
+  );
+
+  server.registerTool(
+    "wanderlog_search_hotels",
+    {
+      title: "Search hotels for a destination",
+      description: searchHotelsDescription,
+      inputSchema: searchHotelsInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      searchHotels(ctx, args as Parameters<typeof searchHotels>[1]),
     ),
   );
 

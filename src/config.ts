@@ -5,6 +5,7 @@ export type Config = {
   baseUrl: string;
   wsBaseUrl: string;
   userAgent: string;
+  defaultCurrency?: string;
 };
 
 const DEFAULT_USER_AGENT =
@@ -57,5 +58,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     baseUrl: env.WANDERLOG_BASE_URL ?? "https://wanderlog.com",
     wsBaseUrl: env.WANDERLOG_WS_BASE_URL ?? "wss://wanderlog.com",
     userAgent: env.WANDERLOG_USER_AGENT ?? DEFAULT_USER_AGENT,
+    defaultCurrency: env.WANDERLOG_DEFAULT_CURRENCY,
   };
 }

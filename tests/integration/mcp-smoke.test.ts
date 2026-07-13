@@ -87,7 +87,7 @@ describe("MCP stdio server (smoke)", () => {
     expect(p.pid).toBeDefined();
   });
 
-  it("responds to tools/list with all 26 tools", async () => {
+  it("responds to tools/list with all 27 tools", async () => {
     const p = startServer();
     await waitForReady(p);
     await initialize(p);
@@ -124,6 +124,7 @@ describe("MCP stdio server (smoke)", () => {
       "wanderlog_remove_place",
       "wanderlog_rename_day",
       "wanderlog_search_guides",
+      "wanderlog_search_hotels",
       "wanderlog_search_places",
       "wanderlog_update_trip_dates",
     ]);
