@@ -2,7 +2,11 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import { findSectionByRef, submitOp } from "./shared.js";
+import {
+  findPlacesToVisitSection,
+  findSectionByRef,
+  submitOp,
+} from "./shared.js";
 
 export const updateSectionInputSchema = {
   trip_key: z
@@ -38,6 +42,8 @@ type Args = {
   heading: string;
 };
 
+const SYSTEM_SECTION_TYPES = new Set(["hotels", "flights", "transit"]);
+
 export async function updateSection(
   ctx: AppContext,
   args: Args,
@@ -50,6 +56,26 @@ export async function updateSection(
     if (!found) {
       throw new WanderlogValidationError(
         `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+      );
+    }
+
+    const { index, section } = found;
+
+    if (section.mode === "dayPlan") {
+      throw new WanderlogValidationError(
+        `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`,
+      );
+    }
+
+    if (findPlacesToVisitSection(trip)?.index === index) {
+      throw new WanderlogValidationError(
+        `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`,
+      );
+    }
+
+    if (SYSTEM_SECTION_TYPES.has(section.type)) {
+      throw new WanderlogValidationError(
+        `The "${section.heading || section.type}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`,
       );
     }
 

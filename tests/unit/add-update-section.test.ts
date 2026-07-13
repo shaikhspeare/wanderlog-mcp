@@ -1,14 +1,40 @@
 import { describe, expect, it } from "vitest";
+import type { AppContext } from "../../src/context.ts";
 import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import {
   buildSectionObject,
   findSectionByRef,
 } from "../../src/tools/shared.ts";
+import { updateSection } from "../../src/tools/update-section.ts";
 import type { Section, TripPlan } from "../../src/types.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
 
 function fresh(trip: TripPlan): TripPlan {
   return structuredClone(trip);
+}
+
+function makeFakeContext(trip: TripPlan): {
+  ctx: AppContext;
+  submittedOps: Json0Op[][];
+} {
+  const submittedOps: Json0Op[][] = [];
+  const ctx = {
+    pool: {
+      get: () => ({
+        isSubscribed: true,
+        version: 1,
+        async submit(ops: Json0Op[]) {
+          submittedOps.push(ops);
+        },
+      }),
+    },
+    tripCache: {
+      getEntry: async () => ({ snapshot: structuredClone(trip) }),
+      applyLocalOp: () => {},
+      invalidate: () => {},
+    },
+  } as unknown as AppContext;
+  return { ctx, submittedOps };
 }
 
 // ---------------------------------------------------------------------------
@@ -193,5 +219,52 @@ describe("applyOp – section ld", () => {
       { p: ["itinerary", "sections", 0], ld: staleSection },
     ];
     expect(() => applyOp(doc, ops)).toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// updateSection guards — must refuse day/places-to-visit/system sections,
+// mirroring deleteSection so it can't collide with rename_day or corrupt
+// the day structure.
+// ---------------------------------------------------------------------------
+
+describe("updateSection guards", () => {
+  it("refuses to rename a day (dayPlan) section and points at rename_day", async () => {
+    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+    const res = await updateSection(ctx, {
+      trip_key: "T",
+      section: "Arrival day",
+      heading: "Renamed day",
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toContain("rename_day");
+    expect(submittedOps).toHaveLength(0);
+  });
+
+  it("refuses to rename the 'Places to visit' default list", async () => {
+    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+    const res = await updateSection(ctx, {
+      trip_key: "T",
+      section: "Places to visit",
+      heading: "My places",
+    });
+    expect(res.isError).toBe(true);
+    expect(res.content[0]!.text).toContain("default place list");
+    expect(submittedOps).toHaveLength(0);
+  });
+
+  it("allows renaming a genuine custom section", async () => {
+    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+    const res = await updateSection(ctx, {
+      trip_key: "T",
+      section: "Notes",
+      heading: "Trip Notes",
+    });
+    expect(res.isError).toBeUndefined();
+    expect(submittedOps).toHaveLength(1);
+    expect(submittedOps[0]![0]!).toMatchObject({
+      od: "Notes",
+      oi: "Trip Notes",
+    });
   });
 });

@@ -34,8 +34,8 @@ notes, and other blocks — use them to group content thematically (e.g. "Food &
 "Day Trips", "Must-See Spots") or to create additional place lists beyond the default
 "Places to visit".
 
-The new section is empty; add places to it with wanderlog_add_place using the section heading
-as the "day" reference, or use wanderlog_add_note / wanderlog_add_checklist.
+The new section is empty; add places to it with wanderlog_add_place by passing the section
+heading as the "section" parameter, or use wanderlog_add_note / wanderlog_add_checklist.
 
 Returns the heading and position of the inserted section.
 `.trim();
