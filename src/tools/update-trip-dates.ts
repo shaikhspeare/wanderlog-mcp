@@ -3,7 +3,7 @@ import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import type { Section, TripPlan } from "../types.js";
-import { generateBlockId, submitOp } from "./shared.js";
+import { generateBlockId, submitOp, isValidDate, validateDateRange } from "./shared.js";
 
 export const updateTripDatesInputSchema = {
   trip_key: z.string().min(1).describe("The trip to update."),
@@ -249,6 +249,17 @@ export async function updateTripDates(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
+    if (!isValidDate(args.start_date)) {
+      throw new WanderlogValidationError(
+        `Invalid start_date: "${args.start_date}". Must be a valid calendar date.`,
+      );
+    }
+    if (!isValidDate(args.end_date)) {
+      throw new WanderlogValidationError(
+        `Invalid end_date: "${args.end_date}". Must be a valid calendar date.`,
+      );
+    }
+    validateDateRange(args.start_date, args.end_date);
     const trip = await ctx.tripCache.get(args.trip_key);
     const ops = buildUpdateDatesOps(
       trip,
