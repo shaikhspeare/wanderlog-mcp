@@ -7,10 +7,15 @@ import type { ShareDBPool } from "../../src/transport/sharedb.ts";
 class FakeShareDBClient extends EventEmitter {
   public version = 1;
   public subscribeCalled = 0;
+  public discardCalled = 0;
 
   async subscribe() {
     this.subscribeCalled++;
     return { title: "Test Trip", sections: [] };
+  }
+
+  discardSnapshot() {
+    this.discardCalled++;
   }
 }
 
@@ -54,6 +59,31 @@ describe("TripCache event listener leak", () => {
       cache.invalidate("tripA");
       expect(fakeClient.listenerCount("remoteOp")).toBe(0);
     }
+  });
+
+  it("discards the client snapshot on invalidate so the next get refetches", async () => {
+    const fakeClient = new FakeShareDBClient();
+    const fakeRest = {
+      getTripWithResources: async () => ({ geos: [] }),
+    } as unknown as RestClient;
+
+    const fakePool = {
+      get: () => fakeClient,
+    } as unknown as ShareDBPool;
+
+    const cache = new TripCache(fakeRest, fakePool);
+
+    await cache.get("tripA");
+    expect(fakeClient.subscribeCalled).toBe(1);
+
+    // A failed submit invalidates the entry. The client must be told to drop its
+    // frozen snapshot, otherwise the next subscribe() would serve stale data.
+    cache.invalidate("tripA");
+    expect(fakeClient.discardCalled).toBe(1);
+
+    // Next read must re-subscribe rather than reuse the dropped entry.
+    await cache.get("tripA");
+    expect(fakeClient.subscribeCalled).toBe(2);
   });
 
   it("unregisters listener on clear", async () => {

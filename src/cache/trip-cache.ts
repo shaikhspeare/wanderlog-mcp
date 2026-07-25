@@ -98,10 +98,15 @@ export class TripCache {
   private deleteEntry(tripKey: string): void {
     const entry = this.entries.get(tripKey);
     if (entry) {
+      const client = this.pool.get(tripKey);
       if (entry.listener) {
-        const client = this.pool.get(tripKey);
         client.off("remoteOp", entry.listener);
       }
+      // Drop the client's frozen snapshot too, otherwise the next get() would
+      // re-subscribe and receive the stale in-memory copy instead of refetching
+      // fresh server state (invariant: a failed submit invalidates the cache so
+      // the next read sees a fresh snapshot).
+      client.discardSnapshot();
       this.entries.delete(tripKey);
     }
   }

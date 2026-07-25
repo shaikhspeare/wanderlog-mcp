@@ -178,3 +178,96 @@ describe("ShareDBClient bare {code, message} rejection frames", () => {
     expect(client.version).toBe(8);
   });
 });
+
+describe("ShareDBClient own-op idempotency", () => {
+  const config = {
+    cookieHeader: "connect.sid=test",
+    baseUrl: "https://example.test",
+    wsBaseUrl: "wss://example.test",
+    userAgent: "test",
+  };
+
+  function deliverFrame(client: ShareDBClient, frame: Record<string, unknown>) {
+    (
+      client as unknown as {
+        handleFrame: (
+          frame: Record<string, unknown>,
+          handshakeTimeout: NodeJS.Timeout,
+          connectResolve: () => void,
+        ) => void;
+      }
+    ).handleFrame(frame, setTimeout(() => {}, 60_000), () => {});
+  }
+
+  it("does not re-emit an op we authored when no pending entry matches", () => {
+    // Reproduces the double-apply bug: a late ack (its submit already timed out)
+    // or a duplicate ack from a rate-limit retry echoes our own src with a seq
+    // we've already cleared. It must NOT surface as a remoteOp — the cache
+    // already applied it once, and replaying it duplicates the mutation.
+    const client = new ShareDBClient(config, "tripA");
+    const internals = client as unknown as { sessionId?: string; _version: number };
+    internals.sessionId = "me";
+    internals._version = 3;
+
+    let remoteOps = 0;
+    client.on("remoteOp", () => {
+      remoteOps++;
+    });
+
+    deliverFrame(client, {
+      a: "op",
+      src: "me",
+      seq: 99, // no pending entry with this seq
+      v: 2,
+      op: [{ p: ["days"], oi: 5 }],
+      c: "TripPlans",
+      d: "tripA",
+    });
+
+    expect(remoteOps).toBe(0);
+    // Version must not rewind below the value newer ops already advanced it to.
+    expect(client.version).toBe(3);
+  });
+
+  it("still emits genuine remote ops from other sessions", () => {
+    const client = new ShareDBClient(config, "tripA");
+    const internals = client as unknown as { sessionId?: string };
+    internals.sessionId = "me";
+
+    const seen: Array<{ ops: unknown; version: number }> = [];
+    client.on("remoteOp", (ops, version) => {
+      seen.push({ ops, version });
+    });
+
+    deliverFrame(client, {
+      a: "op",
+      src: "someone-else",
+      v: 10,
+      op: [{ p: ["days"], oi: 7 }],
+      c: "TripPlans",
+      d: "tripA",
+    });
+
+    expect(seen).toHaveLength(1);
+    expect(seen[0]!.version).toBe(11);
+    expect(client.version).toBe(11);
+  });
+
+  it("discardSnapshot forces the next subscribe to refetch", () => {
+    const client = new ShareDBClient(config, "tripA");
+    const internals = client as unknown as {
+      subscribed: boolean;
+      snapshot: unknown;
+    };
+    internals.subscribed = true;
+    internals.snapshot = { title: "cached" };
+
+    expect(client.isSubscribed).toBe(true);
+    expect(client.currentSnapshot).toEqual({ title: "cached" });
+
+    client.discardSnapshot();
+
+    expect(client.isSubscribed).toBe(false);
+    expect(client.currentSnapshot).toBeUndefined();
+  });
+});
