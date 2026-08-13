@@ -280,10 +280,16 @@ export function findTripCenter(
  * Resolves the target section for adding a block — either a specific day
  * or the "Places to visit" list. Shared by add-place, add-note, add-checklist.
  */
+export type TargetSection = {
+  index: number;
+  section: Section;
+  label: string;
+};
+
 export function findTargetSection(
   trip: TripPlan,
   day?: string,
-): { index: number; section: Section; label: string } {
+): TargetSection {
   if (day) {
     const daySection = resolveDay(trip, day);
     const found = findDaySectionByDate(trip, daySection.date!);

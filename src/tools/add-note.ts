@@ -1,34 +1,51 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
-import { WanderlogError } from "../errors.js";
+import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
+import type { TripPlan } from "../types.js";
 import {
   buildNoteBlock,
+  findSectionByRef,
   findTargetSection,
   requireUserId,
   submitOp,
+  type TargetSection,
 } from "./shared.js";
 
-export const addNoteInputSchema = {
-  trip_key: z
-    .string()
-    .min(1)
-    .describe("The trip to add the note to. Use wanderlog_list_trips if you don't know the key."),
-  text: z
-    .string()
-    .min(1)
-    .describe("The note text. Plain text — can be multi-line."),
-  day: z
-    .string()
-    .optional()
-    .describe(
-      "Optional day to add the note to. Accepts 'day 2', 'May 4', or ISO '2026-05-04'. Omit to add to the 'Places to visit' list.",
-    ),
-};
+export const addNoteInputSchema = z
+  .object({
+    trip_key: z
+      .string()
+      .min(1)
+      .describe(
+        "The trip to add the note to. Use wanderlog_list_trips if you don't know the key.",
+      ),
+    text: z
+      .string()
+      .min(1)
+      .describe("The note text. Plain text — can be multi-line."),
+    day: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional day to add the note to. Accepts 'day 2', 'May 4', or ISO '2026-05-04'. If 'section' is also provided, the section takes precedence. Omit both to add to the 'Places to visit' list.",
+      ),
+    section: z
+      .string()
+      .min(1)
+      .optional()
+      .describe(
+        "Optional undated section to add the note to, identified by its heading (e.g. 'Notes', 'Food & Drink', or 'Places to visit'). Matching is case-insensitive and takes precedence over 'day'. Omit both to add to the 'Places to visit' list.",
+      ),
+  });
 
 export const addNoteDescription = `
 Adds a text note to a Wanderlog trip. Notes appear inline between places in a day, acting as
 the connective tissue of the itinerary. Every well-built day should have notes between stops.
+Supply "day" for a dated itinerary day or "section" for an undated section such as "Notes"
+or "Food & Drink". When both are provided, "section" takes precedence. Omit both to add to
+the default "Places to visit" list.
 
 When to add a note (do this after adding each place or group of places):
 - How to get there: "Walk 15 min along the South Bank, or take the Jubilee line one stop"
@@ -40,11 +57,35 @@ When to add a note (do this after adding each place or group of places):
 Returns a confirmation of where the note was added.
 `.trim();
 
-type Args = {
-  trip_key: string;
-  text: string;
-  day?: string;
-};
+type Args = z.infer<typeof addNoteInputSchema>;
+
+function evaluateTargetSection(
+  trip: TripPlan,
+  { day, section }: Pick<Args, "day" | "section">,
+): TargetSection {
+  if (section !== undefined) {
+    const found = findSectionByRef(trip, section);
+    if (!found) {
+      throw new WanderlogValidationError(
+        `Section "${section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+      );
+    }
+    if (found.section.mode === "dayPlan" || found.section.date !== null) {
+      throw new WanderlogValidationError(
+        `Section "${found.section.heading || section}" is a dated section. Use the "day" parameter to add a note to an itinerary day.`,
+      );
+    }
+    return {
+      index: found.index,
+      section: found.section,
+      label: `section "${found.section.heading || section}"`,
+    };
+  }
+
+  if (day !== undefined) return findTargetSection(trip, day);
+
+  return findTargetSection(trip);
+}
 
 export async function addNote(
   ctx: AppContext,
@@ -55,7 +96,7 @@ export async function addNote(
     const entry = await ctx.tripCache.getEntry(args.trip_key);
     const trip = entry.snapshot;
 
-    const target = findTargetSection(trip, args.day);
+    const target = evaluateTargetSection(trip, args);
 
     // Step 1: Insert the note block with placeholder text
     const block = buildNoteBlock(userId);
