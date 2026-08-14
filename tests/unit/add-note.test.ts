@@ -148,8 +148,31 @@ describe("addNote section targeting", () => {
     expect(submittedOps).toHaveLength(0);
   });
 
-  it("rejects a dated section heading without submitting operations", async () => {
-    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+  it("allows a non-dayPlan section even when it has a date", async () => {
+    const trip = structuredClone(checklistTrip);
+    trip.itinerary.sections[0]!.date = "2026-06-01";
+    const { ctx, submittedOps } = makeFakeContext(trip);
+    const result = await addNote(ctx, {
+      trip_key: "T",
+      text: "Keep this in Notes",
+      section: "Notes",
+    });
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0]!.text).toContain('section "Notes"');
+    expect(submittedOps[0]![0]!.p).toEqual([
+      "itinerary",
+      "sections",
+      0,
+      "blocks",
+      0,
+    ]);
+  });
+
+  it("rejects a dayPlan section even when it has no date", async () => {
+    const trip = structuredClone(checklistTrip);
+    trip.itinerary.sections[2]!.date = null;
+    const { ctx, submittedOps } = makeFakeContext(trip);
     const result = await addNote(ctx, {
       trip_key: "T",
       text: "Use the day target instead",

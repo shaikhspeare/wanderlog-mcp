@@ -70,7 +70,7 @@ function evaluateTargetSection(
         `Section "${section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
       );
     }
-    if (found.section.mode === "dayPlan" || found.section.date !== null) {
+    if (found.section.mode === "dayPlan") {
       throw new WanderlogValidationError(
         `Section "${found.section.heading || section}" is a dated section. Use the "day" parameter to add a note to an itinerary day.`,
       );
