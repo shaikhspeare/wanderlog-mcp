@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
-import type { Json0Op } from "../../src/ot/apply.ts";
+import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
 import { addExpense } from "../../src/tools/add-expense.ts";
 import { budgetTrip } from "../fixtures/budget-trip.ts";
 
 function makeFakeContext(trip: TripPlan): { ctx: AppContext; submittedOps: Json0Op[][] } {
   const submittedOps: Json0Op[][] = [];
+  const entry = { snapshot: structuredClone(trip), version: 1, geos: [] };
   const ctx = {
     userId: 555,
     pool: {
@@ -19,9 +20,12 @@ function makeFakeContext(trip: TripPlan): { ctx: AppContext; submittedOps: Json0
       }),
     },
     tripCache: {
-      getEntry: async () => ({ snapshot: structuredClone(trip), version: 1, geos: [] }),
-      get: async () => structuredClone(trip),
-      applyLocalOp: () => {},
+      getEntry: async () => entry,
+      get: async () => entry.snapshot,
+      applyLocalOp: (_key: string, ops: Json0Op[], version: number) => {
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
+      },
       invalidate: () => {},
     },
   } as unknown as AppContext;

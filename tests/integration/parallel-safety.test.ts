@@ -1,7 +1,10 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createContext, type AppContext } from "../../src/context.ts";
+import { annotatePlace } from "../../src/tools/annotate-place.ts";
 import { addPlace } from "../../src/tools/add-place.ts";
 import { createTrip } from "../../src/tools/create-trip.ts";
+import { removePlace } from "../../src/tools/remove-place.ts";
+import { isPlaceBlock } from "../../src/types.ts";
 
 /**
  * Isolated live test for the per-trip submit mutex introduced to fix the
@@ -90,5 +93,66 @@ describe("Parallel write safety (live)", () => {
     // Total = 5 blocks across 5 days, no duplicates on any day
     const total = counts.reduce((a, b) => a + b, 0);
     expect(total).toBe(5);
+  }, 90_000);
+
+  it("keeps an annotation attached to its place while a preceding removal shifts the list", async () => {
+    const before = await ctx.rest.getTrip(tripKey!);
+    const dayOne = before.itinerary.sections.find(
+      (section) => section.mode === "dayPlan" && section.date === "2099-06-01",
+    )!;
+    const removed = dayOne.blocks.find(isPlaceBlock)!;
+    const existingIds = new Set(dayOne.blocks.map((block) => block.id));
+
+    const added = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Belém Tower",
+      day: "day 1",
+    });
+    if (added.isError) throw new Error(added.content[0]!.text);
+
+    const afterAdd = await ctx.rest.getTrip(tripKey!);
+    const updatedDayOne = afterAdd.itinerary.sections.find(
+      (section) => section.mode === "dayPlan" && section.date === "2099-06-01",
+    )!;
+    const target = updatedDayOne.blocks.find(
+      (block) => !existingIds.has(block.id) && isPlaceBlock(block),
+    );
+    expect(target && isPlaceBlock(target)).toBe(true);
+    if (!target || !isPlaceBlock(target)) throw new Error("new place block not found");
+
+    const note = `PARALLEL_IDENTITY_${Date.now()}`;
+    const [removeResult, annotateResult] = await Promise.all([
+      removePlace(ctx, {
+        trip_key: tripKey!,
+        place_ref: removed.place.name,
+      }),
+      annotatePlace(ctx, {
+        trip_key: tripKey!,
+        place: target.place.name,
+        note,
+        start_time: "14:15",
+        end_time: "15:30",
+      }),
+    ]);
+    if (removeResult.isError) throw new Error(removeResult.content[0]!.text);
+    if (annotateResult.isError) throw new Error(annotateResult.content[0]!.text);
+
+    const finalTrip = await ctx.rest.getTrip(tripKey!);
+    const finalBlocks = finalTrip.itinerary.sections.flatMap(
+      (section) => section.blocks,
+    );
+    expect(finalBlocks.some((block) => block.id === removed.id)).toBe(false);
+    const finalTarget = finalBlocks.find((block) => block.id === target.id);
+    expect(finalTarget && isPlaceBlock(finalTarget)).toBe(true);
+    if (!finalTarget || !isPlaceBlock(finalTarget)) {
+      throw new Error("annotated place block not found");
+    }
+    expect(finalTarget.startTime).toBe("14:15");
+    expect(finalTarget.endTime).toBe("15:30");
+    expect(
+      finalTarget.text?.ops
+        .map((op) => (typeof op.insert === "string" ? op.insert : ""))
+        .join(""),
+    ).toContain(note);
   }, 90_000);
 });

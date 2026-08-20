@@ -1,161 +1,197 @@
 import { describe, expect, it } from "vitest";
+import type { CacheEntry } from "../../src/cache/trip-cache.ts";
 import type { AppContext } from "../../src/context.ts";
-import type { Json0Op } from "../../src/ot/apply.ts";
+import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
+import type { TripPlan } from "../../src/types.ts";
 import { submitOp } from "../../src/tools/shared.ts";
 
-/**
- * Exercises the per-trip submit mutex in isolation. Uses a fake AppContext
- * that records the order and timing of submits against the fake ShareDBClient,
- * so we can prove parallel calls are actually serialized.
- */
+type Snapshot = TripPlan & { counter: number };
 
-type SubmitRecord = {
-  tripKey: string;
-  startedAt: number;
-  endedAt: number;
-  result: "ok" | "fail";
-};
+function makeEntry(): CacheEntry {
+  return {
+    snapshot: { counter: 0 } as Snapshot,
+    version: 0,
+    geos: [],
+  };
+}
 
 function makeFakeContext(options: {
-  submitDelay: number;
+  submitDelay?: number;
   failOn?: (callIndex: number) => boolean;
-}): {
-  ctx: AppContext;
-  records: SubmitRecord[];
-  invalidateCount: number;
-  applyLocalOpCount: number;
-} {
-  const records: SubmitRecord[] = [];
+  failApply?: boolean;
+} = {}) {
+  const entries = new Map<string, CacheEntry>();
+  const activeByTrip = new Map<string, number>();
+  let activeTotal = 0;
+  let maxActiveTotal = 0;
+  let maxActiveSameTrip = 0;
   let callIndex = 0;
   let invalidateCount = 0;
   let applyLocalOpCount = 0;
+  let getEntryCount = 0;
 
-  const fakeClient = {
-    isSubscribed: true,
-    version: 0,
-    async submit(_ops: Json0Op[]): Promise<void> {
-      const thisCall = callIndex++;
-      const rec: SubmitRecord = {
-        tripKey: "",
-        startedAt: Date.now(),
-        endedAt: 0,
-        result: "ok",
-      };
-      records.push(rec);
-      await new Promise((r) => setTimeout(r, options.submitDelay));
-      rec.endedAt = Date.now();
-      if (options.failOn?.(thisCall)) {
-        rec.result = "fail";
-        throw new Error(`simulated failure on call ${thisCall}`);
-      }
-      this.version += 1;
-    },
+  const getEntry = (tripKey: string): CacheEntry => {
+    getEntryCount++;
+    let entry = entries.get(tripKey);
+    if (!entry) {
+      entry = makeEntry();
+      entries.set(tripKey, entry);
+    }
+    return entry;
   };
 
+  const clients = new Map<string, {
+    isSubscribed: boolean;
+    version: number;
+    submit(ops: Json0Op[]): Promise<void>;
+  }>();
   const ctx = {
     pool: {
-      get: (_tripKey: string) => fakeClient,
+      get: (tripKey: string) => {
+        let client = clients.get(tripKey);
+        if (!client) {
+          client = {
+            isSubscribed: true,
+            version: 0,
+            async submit(_ops: Json0Op[]) {
+              const thisCall = callIndex++;
+              const activeForTrip = (activeByTrip.get(tripKey) ?? 0) + 1;
+              activeByTrip.set(tripKey, activeForTrip);
+              activeTotal++;
+              maxActiveSameTrip = Math.max(maxActiveSameTrip, activeForTrip);
+              maxActiveTotal = Math.max(maxActiveTotal, activeTotal);
+              await new Promise((resolve) =>
+                setTimeout(resolve, options.submitDelay ?? 5),
+              );
+              activeByTrip.set(tripKey, activeForTrip - 1);
+              activeTotal--;
+              if (options.failOn?.(thisCall)) {
+                throw new Error(`simulated failure on call ${thisCall}`);
+              }
+              this.version++;
+            },
+          };
+          clients.set(tripKey, client);
+        }
+        return client;
+      },
     },
     tripCache: {
-      applyLocalOp: (_tripKey: string, _ops: Json0Op[], _version: number) => {
+      getEntry: async (tripKey: string) => getEntry(tripKey),
+      applyLocalOp: (tripKey: string, ops: Json0Op[], version: number) => {
         applyLocalOpCount++;
+        if (options.failApply) throw new Error("simulated apply failure");
+        const entry = getEntry(tripKey);
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
       },
-      invalidate: (_tripKey: string) => {
+      invalidate: (tripKey: string) => {
         invalidateCount++;
+        entries.delete(tripKey);
       },
     },
   } as unknown as AppContext;
 
   return {
     ctx,
-    records,
-    get invalidateCount() {
-      return invalidateCount;
-    },
-    get applyLocalOpCount() {
-      return applyLocalOpCount;
-    },
+    entry: (tripKey = "tripA") => getEntry(tripKey),
+    counts: () => ({
+      applyLocalOpCount,
+      getEntryCount,
+      invalidateCount,
+      maxActiveSameTrip,
+      maxActiveTotal,
+    }),
   };
 }
 
-describe("submitOp per-trip mutex", () => {
-  it("serializes parallel submits on the same trip", async () => {
-    const { ctx, records } = makeFakeContext({ submitDelay: 40 });
-    const ops: Json0Op[] = [{ p: ["a"], oi: 1 }];
+const increment = async (
+  _entry: CacheEntry,
+  submit: (ops: Json0Op[]) => Promise<void>,
+) => submit([{ p: ["counter"], na: 1 }]);
 
-    // Fire 5 submits in parallel. They should run strictly one at a time.
-    await Promise.all([
-      submitOp(ctx, "tripA", ops),
-      submitOp(ctx, "tripA", ops),
-      submitOp(ctx, "tripA", ops),
-      submitOp(ctx, "tripA", ops),
-      submitOp(ctx, "tripA", ops),
-    ]);
-
-    expect(records.length).toBe(5);
-    // Each submit starts after (or at) the previous one's end. With a 40ms
-    // delay and strict serialization, gaps are >= 0; with parallelism they'd
-    // all start near 0 and overlap heavily.
-    for (let i = 1; i < records.length; i++) {
-      expect(records[i]!.startedAt).toBeGreaterThanOrEqual(
-        records[i - 1]!.endedAt - 5,
-      );
-    }
+describe("submitOp per-trip mutation transaction", () => {
+  it("serializes same-trip mutations", async () => {
+    const fake = makeFakeContext({ submitDelay: 15 });
+    await Promise.all(
+      Array.from({ length: 5 }, () => submitOp(fake.ctx, "tripA", increment)),
+    );
+    expect(fake.counts().maxActiveSameTrip).toBe(1);
+    expect((fake.entry().snapshot as Snapshot).counter).toBe(5);
   });
 
-  it("runs submits on different trips in parallel", async () => {
-    const { ctx, records } = makeFakeContext({ submitDelay: 50 });
-    const ops: Json0Op[] = [{ p: ["a"], oi: 1 }];
-
-    const start = Date.now();
+  it("runs different-trip mutations in parallel", async () => {
+    const fake = makeFakeContext({ submitDelay: 20 });
     await Promise.all([
-      submitOp(ctx, "tripA", ops),
-      submitOp(ctx, "tripB", ops),
-      submitOp(ctx, "tripC", ops),
+      submitOp(fake.ctx, "tripA", increment),
+      submitOp(fake.ctx, "tripB", increment),
+      submitOp(fake.ctx, "tripC", increment),
     ]);
-    const elapsed = Date.now() - start;
-
-    expect(records.length).toBe(3);
-    // Parallel across trips: total time should be roughly one delay, not three.
-    expect(elapsed).toBeLessThan(120);
+    expect(fake.counts().maxActiveTotal).toBe(3);
   });
 
-  it("a failed submit does not block the queue", async () => {
-    const holder = makeFakeContext({
-      submitDelay: 20,
-      failOn: (i) => i === 0,
-    });
-    const ops: Json0Op[] = [{ p: ["a"], oi: 1 }];
-
+  it("recovers the queue after a failed submit", async () => {
+    const fake = makeFakeContext({ failOn: (index) => index === 0 });
     const results = await Promise.allSettled([
-      submitOp(holder.ctx, "tripA", ops),
-      submitOp(holder.ctx, "tripA", ops),
-      submitOp(holder.ctx, "tripA", ops),
+      submitOp(fake.ctx, "tripA", increment),
+      submitOp(fake.ctx, "tripA", increment),
+      submitOp(fake.ctx, "tripA", increment),
     ]);
-
-    expect(results[0]!.status).toBe("rejected");
-    expect(results[1]!.status).toBe("fulfilled");
-    expect(results[2]!.status).toBe("fulfilled");
+    expect(results.map((result) => result.status)).toEqual([
+      "rejected",
+      "fulfilled",
+      "fulfilled",
+    ]);
   });
 
-  it("invalidates the cache on submit failure", async () => {
-    const holder = makeFakeContext({
-      submitDelay: 10,
-      failOn: () => true,
+  it("gives queued callbacks the snapshot updated by prior mutations", async () => {
+    const fake = makeFakeContext({ submitDelay: 15 });
+    const seen: number[] = [];
+    const mutation = (entry: CacheEntry, submit: (ops: Json0Op[]) => Promise<void>) => {
+      seen.push((entry.snapshot as Snapshot).counter);
+      return submit([{ p: ["counter"], na: 1 }]);
+    };
+    await Promise.all([
+      submitOp(fake.ctx, "tripA", mutation),
+      submitOp(fake.ctx, "tripA", mutation),
+    ]);
+    expect(seen).toEqual([0, 1]);
+  });
+
+  it("applies successful batches to the stable cache entry", async () => {
+    const fake = makeFakeContext();
+    const entry = fake.entry();
+    await submitOp(fake.ctx, "tripA", increment);
+    expect(fake.entry()).toBe(entry);
+    expect((entry.snapshot as Snapshot).counter).toBe(1);
+    expect(fake.counts()).toMatchObject({
+      applyLocalOpCount: 1,
+      invalidateCount: 0,
     });
-    const ops: Json0Op[] = [{ p: ["a"], oi: 1 }];
-
-    await expect(submitOp(holder.ctx, "tripA", ops)).rejects.toThrow();
-    expect(holder.invalidateCount).toBe(1);
-    expect(holder.applyLocalOpCount).toBe(0);
   });
 
-  it("applies op locally on submit success", async () => {
-    const holder = makeFakeContext({ submitDelay: 10 });
-    const ops: Json0Op[] = [{ p: ["a"], oi: 1 }];
+  it("invalidates on submit or local-apply failure", async () => {
+    const submitFailure = makeFakeContext({ failOn: () => true });
+    await expect(
+      submitOp(submitFailure.ctx, "tripA", increment),
+    ).rejects.toThrow("simulated failure");
+    expect(submitFailure.counts().invalidateCount).toBe(1);
 
-    await submitOp(holder.ctx, "tripA", ops);
-    expect(holder.applyLocalOpCount).toBe(1);
-    expect(holder.invalidateCount).toBe(0);
+    const applyFailure = makeFakeContext({ failApply: true });
+    await expect(
+      submitOp(applyFailure.ctx, "tripA", increment),
+    ).rejects.toThrow("simulated apply failure");
+    expect(applyFailure.counts().invalidateCount).toBe(1);
+  });
+
+  it("does not invalidate on callback validation errors", async () => {
+    const fake = makeFakeContext();
+    await expect(
+      submitOp(fake.ctx, "tripA", () => {
+        throw new Error("validation failed");
+      }),
+    ).rejects.toThrow("validation failed");
+    expect(fake.counts().invalidateCount).toBe(0);
+    await expect(submitOp(fake.ctx, "tripA", increment)).resolves.toBeUndefined();
   });
 });

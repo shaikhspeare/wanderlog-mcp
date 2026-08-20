@@ -4,7 +4,7 @@ import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolvePlaceRef } from "../resolvers/place-ref.js";
 import { isPlaceBlock } from "../types.js";
-import { submitOp, validateTimeInputs } from "./shared.js";
+import { assertBlockAtPath, findBlockById, submitOp, validateTimeInputs } from "./shared.js";
 
 export const annotatePlaceInputSchema = {
   trip_key: z
@@ -64,66 +64,118 @@ export async function annotatePlace(
       );
     }
 
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    const result = resolvePlaceRef(trip, args.place);
-    if (result.kind === "none") {
-      throw new WanderlogError(
-        `No place matching "${args.place}" found in "${trip.title}"`,
-        "place_ref_not_found",
-        {
-          hint: "Check the place name or use wanderlog_get_trip to see what's in the itinerary.",
-          followUps: [
-            `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see all places.`,
-          ],
-        },
-      );
-    }
-    if (result.kind === "ambiguous") {
-      const lines = result.candidates.map((c, i) => {
-        const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
-        const loc = c.section.date ? `day ${c.section.date}` : c.section.heading || "unscheduled";
-        return `  ${i + 1}. ${name} (${loc})`;
-      });
-      const text = `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference or an ordinal prefix (e.g. "1st ${args.place}").`;
-      return { content: [{ type: "text", text }] };
-    }
-
-    const { sectionIndex, blockIndex, block } = result.match;
-    const blockPath = ["itinerary", "sections", sectionIndex, "blocks", blockIndex];
-    const placeName = isPlaceBlock(block) ? block.place.name : `block #${block.id}`;
-
-    // Set inline note via rich-text subtype op
-    if (args.note) {
-      const textOps: Json0Op[] = [
-        {
-          p: [...blockPath, "text"],
-          t: "rich-text",
-          o: [{ insert: `${args.note}\n` }],
-        },
-      ];
-      await submitOp(ctx, args.trip_key, textOps);
-    }
-
-    // Set timing — use od+oi when the field already exists, plain oi when it doesn't
-    if (args.start_time || args.end_time) {
-      const timeOps: Json0Op[] = [];
-      const existingBlock = block as Record<string, unknown>;
-      if (args.start_time) {
-        const op: Json0Op = { p: [...blockPath, "startTime"], oi: args.start_time };
-        if ("startTime" in existingBlock) op.od = existingBlock.startTime as string | null;
-        timeOps.push(op);
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const resolved = resolvePlaceRef(entry.snapshot, args.place);
+      if (resolved.kind === "none") {
+        throw new WanderlogError(
+          `No place matching "${args.place}" found in "${entry.snapshot.title}"`,
+          "place_ref_not_found",
+          {
+            hint: "Check the place name or use wanderlog_get_trip to see what's in the itinerary.",
+            followUps: [
+              `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see all places.`,
+            ],
+          },
+        );
       }
-      if (args.end_time) {
-        const op: Json0Op = { p: [...blockPath, "endTime"], oi: args.end_time };
-        if ("endTime" in existingBlock) op.od = existingBlock.endTime as string | null;
-        timeOps.push(op);
+      if (resolved.kind === "ambiguous") {
+        const lines = resolved.candidates.map((c, i) => {
+          const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
+          const loc = c.section.date ? `day ${c.section.date}` : c.section.heading || "unscheduled";
+          return `  ${i + 1}. ${name} (${loc})`;
+        });
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference or an ordinal prefix (e.g. "1st ${args.place}").`,
+              },
+            ],
+          },
+        };
       }
-      await submitOp(ctx, args.trip_key, timeOps);
-    }
 
-    const parts = [`Updated ${placeName} in "${trip.title}".`];
+      const blockId = resolved.match.block.id;
+      const placeName = isPlaceBlock(resolved.match.block)
+        ? resolved.match.block.place.name
+        : `block #${blockId}`;
+
+      if (args.note) {
+        const current = findBlockById(entry.snapshot, blockId);
+        if (!current) throw new WanderlogError("Place moved or was removed", "stale_target");
+        assertBlockAtPath(entry.snapshot, current.sectionIndex, current.blockIndex, blockId);
+        const textOps: Json0Op[] = [
+          {
+            p: [
+              "itinerary",
+              "sections",
+              current.sectionIndex,
+              "blocks",
+              current.blockIndex,
+              "text",
+            ],
+            t: "rich-text",
+            o: [{ insert: `${args.note}\n` }],
+          },
+        ];
+        await submit(textOps);
+      }
+
+      if (args.start_time || args.end_time) {
+        const current = findBlockById(entry.snapshot, blockId);
+        if (!current) throw new WanderlogError("Place moved or was removed", "stale_target");
+        const block = assertBlockAtPath(
+          entry.snapshot,
+          current.sectionIndex,
+          current.blockIndex,
+          blockId,
+        );
+        const blockPath = [
+          "itinerary",
+          "sections",
+          current.sectionIndex,
+          "blocks",
+          current.blockIndex,
+        ];
+        const timeOps: Json0Op[] = [];
+        const existingBlock = block as Record<string, unknown>;
+        if (args.start_time) {
+          const op: Json0Op = { p: [...blockPath, "startTime"], oi: args.start_time };
+          if ("startTime" in existingBlock) op.od = existingBlock.startTime as string | null;
+          timeOps.push(op);
+        }
+        if (args.end_time) {
+          const op: Json0Op = { p: [...blockPath, "endTime"], oi: args.end_time };
+          if ("endTime" in existingBlock) op.od = existingBlock.endTime as string | null;
+          timeOps.push(op);
+        }
+        await submit(timeOps);
+      }
+
+      const updated = findBlockById(entry.snapshot, blockId)?.block;
+      if (!updated) {
+        throw new WanderlogError("Updated place could not be verified", "stale_target");
+      }
+      const record = updated as Record<string, unknown>;
+      const textValue = record.text as
+        | { ops?: Array<{ insert?: unknown }> }
+        | undefined;
+      const noteText = textValue?.ops
+        ?.map((op) => (typeof op.insert === "string" ? op.insert : ""))
+        .join("");
+      if (
+        (args.note && !noteText?.includes(args.note)) ||
+        (args.start_time && record.startTime !== args.start_time) ||
+        (args.end_time && record.endTime !== args.end_time)
+      ) {
+        throw new WanderlogError("Updated place fields could not be verified", "stale_target");
+      }
+      return { placeName, tripTitle: entry.snapshot.title };
+    });
+    if ("response" in result && result.response) return result.response;
+
+    const parts = [`Updated ${result.placeName} in "${result.tripTitle}".`];
     if (args.start_time) {
       parts.push(`Time: ${args.start_time}${args.end_time ? `–${args.end_time}` : ""}.`);
     }

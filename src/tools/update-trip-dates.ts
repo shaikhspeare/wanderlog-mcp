@@ -260,35 +260,53 @@ export async function updateTripDates(
       );
     }
     validateDateRange(args.start_date, args.end_date);
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const ops = buildUpdateDatesOps(
-      trip,
-      args.start_date,
-      args.end_date,
-      args.force ?? false,
-    );
-
-    if (ops.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${trip.title}" already has dates ${args.start_date} → ${args.end_date}. No changes made.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const ops = buildUpdateDatesOps(
+        trip,
+        args.start_date,
+        args.end_date,
+        args.force ?? false,
+      );
+      if (ops.length === 0) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${trip.title}" already has dates ${args.start_date} → ${args.end_date}. No changes made.`,
+              },
+            ],
           },
-        ],
-      };
+        };
+      }
+      const diff = diffDays(trip, args.start_date, args.end_date);
+      const removedSectionIds = new Set(
+        diff.toRemove.map(({ section }) => section.id),
+      );
+      await submit(ops);
+      if (
+        entry.snapshot.itinerary.sections.some((section) =>
+          removedSectionIds.has(section.id),
+        )
+      ) {
+        throw new WanderlogError(
+          "A removed day section is still present",
+          "stale_target",
+        );
+      }
+      return { diff, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
+    const summary: string[] = [
+      `Updated "${result.tripTitle}" to ${args.start_date} → ${args.end_date}.`,
+    ];
+    if (result.diff.toAdd.length > 0) {
+      summary.push(`  Added ${result.diff.toAdd.length} day(s): ${result.diff.toAdd.join(", ")}`);
     }
-
-    await submitOp(ctx, args.trip_key, ops);
-
-    const diff = diffDays(trip, args.start_date, args.end_date);
-    const summary: string[] = [`Updated "${trip.title}" to ${args.start_date} → ${args.end_date}.`];
-    if (diff.toAdd.length > 0) {
-      summary.push(`  Added ${diff.toAdd.length} day(s): ${diff.toAdd.join(", ")}`);
-    }
-    if (diff.toRemove.length > 0) {
+    if (result.diff.toRemove.length > 0) {
       summary.push(
-        `  Removed ${diff.toRemove.length} day(s): ${diff.toRemove.map((r) => r.date).join(", ")}`,
+        `  Removed ${result.diff.toRemove.length} day(s): ${result.diff.toRemove.map((r) => r.date).join(", ")}`,
       );
     }
     return { content: [{ type: "text", text: summary.join("\n") }] };

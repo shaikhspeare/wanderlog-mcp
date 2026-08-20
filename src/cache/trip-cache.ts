@@ -3,7 +3,7 @@ import type { RestClient } from "../transport/rest.js";
 import type { ShareDBPool } from "../transport/sharedb.js";
 import type { Geo, TripPlan } from "../types.js";
 
-type CacheEntry = {
+export type CacheEntry = {
   snapshot: TripPlan;
   version: number;
   geos: Geo[];

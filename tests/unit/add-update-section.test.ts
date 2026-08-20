@@ -18,6 +18,7 @@ function makeFakeContext(trip: TripPlan): {
   submittedOps: Json0Op[][];
 } {
   const submittedOps: Json0Op[][] = [];
+  const entry = { snapshot: structuredClone(trip), version: 1, geos: [] };
   const ctx = {
     pool: {
       get: () => ({
@@ -29,8 +30,11 @@ function makeFakeContext(trip: TripPlan): {
       }),
     },
     tripCache: {
-      getEntry: async () => ({ snapshot: structuredClone(trip) }),
-      applyLocalOp: () => {},
+      getEntry: async () => entry,
+      applyLocalOp: (_key: string, ops: Json0Op[], version: number) => {
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
+      },
       invalidate: () => {},
     },
   } as unknown as AppContext;

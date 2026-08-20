@@ -6,6 +6,7 @@ import { resolveDay } from "../resolvers/day.js";
 import type { PlaceData } from "../types.js";
 import {
   buildPlaceBlock,
+  findBlockById,
   findDaySectionByDate,
   findPlacesToVisitSection,
   findSectionByRef,
@@ -89,49 +90,10 @@ export async function addPlace(
     validateTimeInputs(args.start_time, args.end_time);
     const userId = requireUserId(ctx);
     const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    // Resolve target sections. entry.snapshot is replaced after each submitOp
-    // (applyLocalOp returns a new object), so section indices are pre-computed
-    // once here — they stay stable because block inserts don't shift sections.
-    type Target = { sectionIndex: number; label: string };
-    const targets: Target[] = [];
-
-    if (args.day) {
-      const daySection = resolveDay(trip, args.day);
-      const found = findDaySectionByDate(trip, daySection.date!);
-      if (!found) {
-        throw new WanderlogValidationError(`Day ${args.day} not found in trip`);
-      }
-      targets.push({ sectionIndex: found.index, label: `day ${daySection.date}` });
-    }
-
-    if (args.section) {
-      const found = findSectionByRef(trip, args.section);
-      if (!found) {
-        throw new WanderlogValidationError(
-          `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
-        );
-      }
-      targets.push({ sectionIndex: found.index, label: `section "${args.section}"` });
-    }
-
-    if (targets.length === 0) {
-      const places = findPlacesToVisitSection(trip);
-      if (!places) {
-        throw new WanderlogError(
-          "Trip has no 'Places to visit' list",
-          "no_places_section",
-          "This is unexpected — Wanderlog usually creates one automatically. Try adding to a specific day instead.",
-        );
-      }
-      targets.push({ sectionIndex: places.index, label: "places to visit" });
-    }
-
-    const center = findTripCenter(trip, entry.geos);
+    const center = findTripCenter(entry.snapshot, entry.geos);
     if (!center) {
       throw new WanderlogValidationError(
-        `Cannot add places to "${trip.title}" because no location anchor is available`,
+        `Cannot add places to "${entry.snapshot.title}" because no location anchor is available`,
         "This trip has no associated geo and no existing places. Add a place via the Wanderlog UI first.",
       );
     }
@@ -143,7 +105,7 @@ export async function addPlace(
     });
     if (predictions.length === 0) {
       throw new WanderlogError(
-        `No place found matching "${args.place}" near ${trip.title}`,
+        `No place found matching "${args.place}" near ${entry.snapshot.title}`,
         "place_not_found",
         {
           hint: "Try a more specific name, or widen the search with wanderlog_search_places first.",
@@ -158,45 +120,114 @@ export async function addPlace(
     const detail: PlaceData = await ctx.rest.getPlaceDetails(topPrediction.place_id);
     const imageKeys = await ctx.rest.getPlacePhotos(detail);
 
-    // Insert the place into each target. entry.snapshot is read fresh each
-    // iteration so blocks.length is accurate even when both targets are the
-    // same section (second block must go at N+1, not N).
-    for (const target of targets) {
-      const currentSnapshot = entry.snapshot;
-      const insertIndex = currentSnapshot.itinerary.sections[target.sectionIndex]!.blocks.length;
-      const blockPath = ["itinerary", "sections", target.sectionIndex, "blocks", insertIndex];
+    const mutation = await submitOp(ctx, args.trip_key, async (lockedEntry, submit) => {
+      const trip = lockedEntry.snapshot;
+      type Target = { sectionId: number; label: string };
+      const targets: Target[] = [];
 
-      // Build the block WITHOUT timing — timing is set via separate oi ops
-      // to match the Wanderlog UI's two-step pattern (insert block, then set fields).
-      const block = buildPlaceBlock(detail, userId);
-      const insertOps: Json0Op[] = [{ p: blockPath, li: block }];
-      // iOS/iPadOS native apps render thumbnails strictly from `imageKeys`.
-      // Submit together with the `li` so no client ever sees a keyless block.
-      if (imageKeys.length > 0) {
-        insertOps.push({ p: [...blockPath, "imageKeys"], oi: imageKeys });
+      if (args.day) {
+        const daySection = resolveDay(trip, args.day);
+        const found = findDaySectionByDate(trip, daySection.date!);
+        if (!found) {
+          throw new WanderlogValidationError(`Day ${args.day} not found in trip`);
+        }
+        targets.push({ sectionId: found.section.id, label: `day ${daySection.date}` });
       }
-      await submitOp(ctx, args.trip_key, insertOps);
-
-      if (args.note) {
-        await submitOp(ctx, args.trip_key, [
-          {
-            p: [...blockPath, "text"],
-            t: "rich-text",
-            o: [{ insert: `${args.note}\n` }],
-          },
-        ]);
+      if (args.section) {
+        const found = findSectionByRef(trip, args.section);
+        if (!found) {
+          throw new WanderlogValidationError(
+            `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+          );
+        }
+        targets.push({ sectionId: found.section.id, label: `section "${args.section}"` });
+      }
+      if (targets.length === 0) {
+        const places = findPlacesToVisitSection(trip);
+        if (!places) {
+          throw new WanderlogError(
+            "Trip has no 'Places to visit' list",
+            "no_places_section",
+            "This is unexpected — Wanderlog usually creates one automatically. Try adding to a specific day instead.",
+          );
+        }
+        targets.push({ sectionId: places.section.id, label: "places to visit" });
       }
 
-      if (args.start_time || args.end_time) {
-        const timeOps: Json0Op[] = [];
-        if (args.start_time) timeOps.push({ p: [...blockPath, "startTime"], oi: args.start_time });
-        if (args.end_time) timeOps.push({ p: [...blockPath, "endTime"], oi: args.end_time });
-        await submitOp(ctx, args.trip_key, timeOps);
-      }
-    }
+      for (const target of targets) {
+        const sectionIndex = lockedEntry.snapshot.itinerary.sections.findIndex(
+          (section) => section.id === target.sectionId,
+        );
+        if (sectionIndex < 0) {
+          throw new WanderlogError("Target section moved or was removed", "stale_target");
+        }
+        const section = lockedEntry.snapshot.itinerary.sections[sectionIndex]!;
+        const block = buildPlaceBlock(detail, userId);
+        const blockPath = [
+          "itinerary",
+          "sections",
+          sectionIndex,
+          "blocks",
+          section.blocks.length,
+        ];
+        const insertOps: Json0Op[] = [{ p: blockPath, li: block }];
+        if (imageKeys.length > 0) {
+          insertOps.push({ p: [...blockPath, "imageKeys"], oi: imageKeys });
+        }
+        await submit(insertOps);
 
-    const labelList = targets.map((t) => t.label).join(" and ");
-    const parts = [`Added ${detail.name} to ${labelList} in "${trip.title}".`];
+        if (args.note) {
+          const inserted = findBlockById(lockedEntry.snapshot, block.id);
+          if (!inserted || inserted.block.type !== "place") {
+            throw new WanderlogError("Inserted place could not be found", "stale_target");
+          }
+          await submit([
+            {
+              p: [
+                "itinerary",
+                "sections",
+                inserted.sectionIndex,
+                "blocks",
+                inserted.blockIndex,
+                "text",
+              ],
+              t: "rich-text",
+              o: [{ insert: `${args.note}\n` }],
+            },
+          ]);
+        }
+
+        if (args.start_time || args.end_time) {
+          const inserted = findBlockById(lockedEntry.snapshot, block.id);
+          if (!inserted || inserted.block.type !== "place") {
+            throw new WanderlogError("Inserted place could not be found", "stale_target");
+          }
+          const currentPath = [
+            "itinerary",
+            "sections",
+            inserted.sectionIndex,
+            "blocks",
+            inserted.blockIndex,
+          ];
+          const timeOps: Json0Op[] = [];
+          if (args.start_time) {
+            timeOps.push({ p: [...currentPath, "startTime"], oi: args.start_time });
+          }
+          if (args.end_time) {
+            timeOps.push({ p: [...currentPath, "endTime"], oi: args.end_time });
+          }
+          await submit(timeOps);
+        }
+      }
+      return {
+        labelList: targets.map((target) => target.label).join(" and "),
+        tripTitle: trip.title,
+      };
+    });
+
+    const parts = [
+      `Added ${detail.name} to ${mutation.labelList} in "${mutation.tripTitle}".`,
+    ];
     if (args.start_time) {
       parts.push(`Scheduled: ${args.start_time}${args.end_time ? `–${args.end_time}` : ""}.`);
     }
@@ -214,4 +245,3 @@ export async function addPlace(
     return { content: [{ type: "text", text: msg }], isError: true };
   }
 }
-

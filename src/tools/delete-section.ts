@@ -44,43 +44,39 @@ export async function deleteSection(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    const found = findSectionByRef(trip, args.section);
-    if (!found) {
-      throw new WanderlogValidationError(
-        `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
-      );
-    }
-
-    const { index, section } = found;
-
-    if (section.mode === "dayPlan") {
-      throw new WanderlogValidationError(
-        `Day sections cannot be deleted here. Use wanderlog_update_trip_dates to change the trip's date range instead.`,
-      );
-    }
-
-    if (findPlacesToVisitSection(trip)?.index === index) {
-      throw new WanderlogValidationError(
-        `The "Places to visit" section cannot be deleted — it is the trip's default place list.`,
-      );
-    }
-
-    if (SYSTEM_SECTION_TYPES.has(section.type)) {
-      throw new WanderlogValidationError(
-        `The "${section.heading || section.type}" section is a system section and cannot be deleted.`,
-      );
-    }
-
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", index], ld: section },
-    ];
-    await submitOp(ctx, args.trip_key, ops);
-
-    const label = section.heading || "(untitled)";
-    const text = `Deleted section "${label}" from "${trip.title}".`;
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const found = findSectionByRef(trip, args.section);
+      if (!found) {
+        throw new WanderlogValidationError(
+          `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+        );
+      }
+      const { index, section } = found;
+      if (section.mode === "dayPlan") {
+        throw new WanderlogValidationError(
+          `Day sections cannot be deleted here. Use wanderlog_update_trip_dates to change the trip's date range instead.`,
+        );
+      }
+      if (findPlacesToVisitSection(trip)?.index === index) {
+        throw new WanderlogValidationError(
+          `The "Places to visit" section cannot be deleted — it is the trip's default place list.`,
+        );
+      }
+      if (SYSTEM_SECTION_TYPES.has(section.type)) {
+        throw new WanderlogValidationError(
+          `The "${section.heading || section.type}" section is a system section and cannot be deleted.`,
+        );
+      }
+      const sectionId = section.id;
+      const ops: Json0Op[] = [{ p: ["itinerary", "sections", index], ld: section }];
+      await submit(ops);
+      if (entry.snapshot.itinerary.sections.some((candidate) => candidate.id === sectionId)) {
+        throw new WanderlogError("Deleted section is still present", "stale_target");
+      }
+      return { label: section.heading || "(untitled)", tripTitle: trip.title };
+    });
+    const text = `Deleted section "${result.label}" from "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

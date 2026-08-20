@@ -1,4 +1,5 @@
 import type { AppContext } from "../context.js";
+import type { CacheEntry } from "../cache/trip-cache.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolveDay } from "../resolvers/day.js";
@@ -40,39 +41,44 @@ async function withSubmitLock<T>(
 }
 
 /**
- * Submit a JSON0 op array to the server and apply it to the live cache on
- * success. Encapsulates the version handshake so tools don't touch
- * ShareDBClient directly.
+ * Run a mutation transaction against a fresh cache entry while holding the
+ * per-trip lock. The callback resolves targets and constructs paths from the
+ * locked snapshot, then uses `submit` for one or more batches.
  *
  * Rules:
- * - Trip must already be in the cache (caller should have called tripCache.get()).
  * - Per-trip mutex: concurrent calls on the same trip serialize automatically.
- * - Op fails atomically: if submit rejects, the cache is invalidated so the
- *   next read refetches a fresh snapshot from the server.
- * - On success, cache.applyLocalOp() is called with the server-accepted version.
+ * - Each successful batch is applied to the stable entry before `submit` returns.
+ * - Only submit/apply failures invalidate the cache; callback errors do not.
  */
-export async function submitOp(
+export async function submitOp<T>(
   ctx: AppContext,
   tripKey: string,
-  ops: Json0Op[],
-): Promise<void> {
+  mutate: (
+    entry: CacheEntry,
+    submit: (ops: Json0Op[]) => Promise<void>,
+  ) => Promise<T> | T,
+): Promise<T> {
   return withSubmitLock(tripKey, async () => {
+    const entry = await ctx.tripCache.getEntry(tripKey);
     const client = ctx.pool.get(tripKey);
     if (!client.isSubscribed) {
       throw new WanderlogError(
-        `Trip ${tripKey} is not subscribed — call tripCache.get() first`,
+        `Trip ${tripKey} is not subscribed`,
         "not_subscribed",
       );
     }
-    try {
-      await submitWithRateLimitRetry(client, ops);
-      ctx.tripCache.applyLocalOp(tripKey, ops, client.version);
-    } catch (err) {
-      // Any submit failure leaves our cached view possibly inconsistent with
-      // the server. Invalidate so the next get() refetches + resubscribes.
-      ctx.tripCache.invalidate(tripKey);
-      throw err;
-    }
+
+    const submit = async (ops: Json0Op[]): Promise<void> => {
+      try {
+        await submitWithRateLimitRetry(client, ops);
+        ctx.tripCache.applyLocalOp(tripKey, ops, client.version);
+      } catch (err) {
+        ctx.tripCache.invalidate(tripKey);
+        throw err;
+      }
+    };
+
+    return mutate(entry, submit);
   });
 }
 
@@ -150,6 +156,41 @@ export function findSectionByRef(
     }
   }
   return null;
+}
+
+export function findBlockById(
+  trip: TripPlan,
+  blockId: number,
+): { sectionIndex: number; blockIndex: number; section: Section; block: Block } | null {
+  for (let sectionIndex = 0; sectionIndex < trip.itinerary.sections.length; sectionIndex++) {
+    const section = trip.itinerary.sections[sectionIndex]!;
+    const blockIndex = section.blocks.findIndex((block) => block.id === blockId);
+    if (blockIndex >= 0) {
+      return {
+        sectionIndex,
+        blockIndex,
+        section,
+        block: section.blocks[blockIndex]!,
+      };
+    }
+  }
+  return null;
+}
+
+export function assertBlockAtPath(
+  trip: TripPlan,
+  sectionIndex: number,
+  blockIndex: number,
+  blockId: number,
+): Block {
+  const block = trip.itinerary.sections[sectionIndex]?.blocks[blockIndex];
+  if (!block || block.id !== blockId) {
+    throw new WanderlogError(
+      `Block ${blockId} moved while preparing the mutation`,
+      "stale_target",
+    );
+  }
+  return block;
 }
 
 export function requireUserId(ctx: AppContext): number {

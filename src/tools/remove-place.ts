@@ -42,56 +42,59 @@ export async function removePlace(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const result = resolvePlaceRef(trip, args.place_ref);
-
-    if (result.kind === "none") {
-      throw new WanderlogNotFoundError("Place", args.place_ref);
-    }
-
-    if (result.kind === "ambiguous") {
-      const lines = result.candidates
-        .slice(0, 10)
-        .map((c, i) => {
-          const name = isPlaceBlock(c.block)
-            ? c.block.place.name
-            : `${c.block.type} block`;
-          const where = formatLocation(c.section);
-          const ordinal = ordinalLabel(i + 1);
-          return `  ${i + 1}. ${name} — ${where} (${ordinal})`;
-        })
-        .join("\n");
-
-      const firstCandidateName = isPlaceBlock(result.candidates[0]!.block)
-        ? result.candidates[0]!.block.place.name
-        : "the block";
-      const retryHint = `Call this tool again with an ordinal to pick one, e.g. place_ref: "1st ${firstCandidateName}" or "last ${firstCandidateName}". You can also combine with a day filter, e.g. "2nd ${firstCandidateName} on day 2".`;
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.place_ref}" matches ${result.candidates.length} places:\n${lines}\n\n${retryHint}`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const resolved = resolvePlaceRef(trip, args.place_ref);
+      if (resolved.kind === "none") {
+        throw new WanderlogNotFoundError("Place", args.place_ref);
+      }
+      if (resolved.kind === "ambiguous") {
+        const lines = resolved.candidates
+          .slice(0, 10)
+          .map((candidate, index) => {
+            const name = isPlaceBlock(candidate.block)
+              ? candidate.block.place.name
+              : `${candidate.block.type} block`;
+            return `  ${index + 1}. ${name} — ${formatLocation(candidate.section)} (${ordinalLabel(index + 1)})`;
+          })
+          .join("\n");
+        const firstCandidateName = isPlaceBlock(resolved.candidates[0]!.block)
+          ? resolved.candidates[0]!.block.place.name
+          : "the block";
+        const retryHint = `Call this tool again with an ordinal to pick one, e.g. place_ref: "1st ${firstCandidateName}" or "last ${firstCandidateName}". You can also combine with a day filter, e.g. "2nd ${firstCandidateName} on day 2".`;
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.place_ref}" matches ${resolved.candidates.length} places:\n${lines}\n\n${retryHint}`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
+        };
+      }
+      const { sectionIndex, blockIndex, block, section } = resolved.match;
+      const blockId = block.id;
+      const ops: Json0Op[] = [
+        {
+          p: ["itinerary", "sections", sectionIndex, "blocks", blockIndex],
+          ld: block,
+        },
+      ];
+      await submit(ops);
+      const remains = entry.snapshot.itinerary.sections.some((candidateSection) =>
+        candidateSection.blocks.some((candidate) => candidate.id === blockId),
+      );
+      if (remains) throw new WanderlogError("Removed block is still present", "stale_target");
+      return {
+        removedName: isPlaceBlock(block) ? block.place.name : `${block.type} block`,
+        location: formatLocation(section),
+        tripTitle: trip.title,
       };
-    }
-
-    const { sectionIndex, blockIndex, block, section } = result.match;
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "sections", sectionIndex, "blocks", blockIndex],
-        ld: block,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
-
-    const removedName = isPlaceBlock(block)
-      ? block.place.name
-      : `${block.type} block`;
-    const text = `Removed ${removedName} from ${formatLocation(section)} in "${trip.title}".`;
+    });
+    if ("response" in result && result.response) return result.response;
+    const text = `Removed ${result.removedName} from ${result.location} in "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

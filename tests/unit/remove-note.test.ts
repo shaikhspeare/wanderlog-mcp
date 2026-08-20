@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
-import type { Json0Op } from "../../src/ot/apply.ts";
+import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import type { TripPlan } from "../../src/types.ts";
 import {
   extractPlainText,
@@ -21,6 +21,7 @@ function makeFakeContext(trip: TripPlan): {
 } {
   const submittedOps: Json0Op[][] = [];
   const invalidateCount = { value: 0 };
+  const entry = { snapshot: structuredClone(trip), version: 1, geos: [] };
 
   const ctx = {
     pool: {
@@ -33,8 +34,12 @@ function makeFakeContext(trip: TripPlan): {
       }),
     },
     tripCache: {
-      get: async () => structuredClone(trip),
-      applyLocalOp: () => {},
+      get: async () => entry.snapshot,
+      getEntry: async () => entry,
+      applyLocalOp: (_key: string, ops: Json0Op[], version: number) => {
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
+      },
       invalidate: () => {
         invalidateCount.value++;
       },

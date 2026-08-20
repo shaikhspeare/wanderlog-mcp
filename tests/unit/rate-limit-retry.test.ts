@@ -26,10 +26,16 @@ function makeFakeContext(failures: Array<Error | null>): {
       this.version += 1;
     },
   };
+  const entry = {
+    snapshot: {} as never,
+    version: 0,
+    geos: [],
+  };
 
   const ctx = {
     pool: { get: () => fakeClient },
     tripCache: {
+      getEntry: async () => entry,
       applyLocalOp: () => {
         applyLocalOpCount++;
       },
@@ -63,7 +69,7 @@ describe("submitOp rate-limit retry", () => {
 
   it("retries after a rate_limited error and succeeds", async () => {
     const fake = makeFakeContext([rateLimitError(), null]);
-    const promise = submitOp(fake.ctx, "tripA", ops);
+    const promise = submitOp(fake.ctx, "tripA", (_entry, submit) => submit(ops));
     await vi.advanceTimersByTimeAsync(2_000);
     await promise;
     expect(fake.submitCalls()).toBe(2);
@@ -78,7 +84,7 @@ describe("submitOp rate-limit retry", () => {
       rateLimitError(),
       rateLimitError(),
     ]);
-    const promise = submitOp(fake.ctx, "tripA", ops);
+    const promise = submitOp(fake.ctx, "tripA", (_entry, submit) => submit(ops));
     const assertion = expect(promise).rejects.toMatchObject({
       code: "rate_limited",
     });
@@ -93,7 +99,9 @@ describe("submitOp rate-limit retry", () => {
     const fake = makeFakeContext([
       new WanderlogError("Submit op timeout", "submit_timeout"),
     ]);
-    await expect(submitOp(fake.ctx, "tripA", ops)).rejects.toMatchObject({
+    await expect(
+      submitOp(fake.ctx, "tripA", (_entry, submit) => submit(ops)),
+    ).rejects.toMatchObject({
       code: "submit_timeout",
     });
     expect(fake.submitCalls()).toBe(1);

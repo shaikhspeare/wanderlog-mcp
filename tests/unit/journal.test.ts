@@ -27,6 +27,11 @@ function makeFakeContext(
   rest: RestMock = {},
 ): { ctx: AppContext; submittedOps: Json0Op[][] } {
   const submittedOps: Json0Op[][] = [];
+  const entry = {
+    snapshot: structuredClone(trip),
+    version: 1,
+    geos: [{ id: 1, name: "Fukuoka", latitude: 33.59, longitude: 130.4 }],
+  };
   const ctx = {
     userId: 555,
     rest: {
@@ -44,13 +49,12 @@ function makeFakeContext(
       }),
     },
     tripCache: {
-      get: async () => structuredClone(trip),
-      getEntry: async () => ({
-        snapshot: structuredClone(trip),
-        version: 1,
-        geos: [{ id: 1, name: "Fukuoka", latitude: 33.59, longitude: 130.4 }],
-      }),
-      applyLocalOp: () => {},
+      get: async () => entry.snapshot,
+      getEntry: async () => entry,
+      applyLocalOp: (_key: string, ops: Json0Op[], version: number) => {
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
+      },
       invalidate: () => {},
     },
   } as unknown as AppContext;
@@ -160,6 +164,20 @@ describe("addJournal", () => {
     expect(op.li.dateTime).toBe("2026-05-31T09:00+09:00"); // offset reused from existing stops
     expect(op.li.media).toEqual([]);
     expect(op.li.text).toEqual({ ops: [{ insert: "Cherry blossoms by the lake." }] });
+  });
+
+  it("reuses an existing place without searching when allow_new_place is set", async () => {
+    const { ctx, submittedOps } = makeFakeContext(journalTrip, noSearch);
+    const res = await addJournal(ctx, {
+      trip_key: "journaltripkey",
+      place: "Ohori",
+      allow_new_place: true,
+    });
+
+    expect(res.isError).toBeUndefined();
+    expect(submittedOps).toHaveLength(1);
+    const op = submittedOps[0]![0] as { li: { place: { place_id: string } } };
+    expect(op.li.place.place_id).toBe("ChIJohori");
   });
 
   it("defaults the date to the place's itinerary day when reused", async () => {

@@ -54,45 +54,48 @@ export async function removeExpense(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const matches = findExpenseMatches(trip, {
-      description: args.description,
-      date: args.date,
-      amount: args.amount,
-      currency: args.currency,
-    });
-
-    if (matches.length === 0) {
-      throw new WanderlogNotFoundError("Expense", args.description);
-    }
-
-    if (matches.length > 1) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const matches = findExpenseMatches(trip, {
+        description: args.description,
+        date: args.date,
+        amount: args.amount,
+        currency: args.currency,
+      });
+      if (matches.length === 0) {
+        throw new WanderlogNotFoundError("Expense", args.description);
+      }
+      if (matches.length > 1) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
-      };
-    }
-
-    const { index, expense } = matches[0]!;
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "budget", "expenses", index],
-        ld: expense,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
+        };
+      }
+      const { index, expense } = matches[0]!;
+      const expenseId = expense.id;
+      const ops: Json0Op[] = [
+        { p: ["itinerary", "budget", "expenses", index], ld: expense },
+      ];
+      await submit(ops);
+      if (entry.snapshot.itinerary.budget?.expenses?.some((item) => item.id === expenseId)) {
+        throw new WanderlogError("Removed expense is still present", "stale_target");
+      }
+      return { expense, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
 
     return {
       content: [
         {
           type: "text",
-          text: `Removed expense ${formatExpense(expense)} from "${trip.title}".`,
+          text: `Removed expense ${formatExpense(result.expense)} from "${result.tripTitle}".`,
         },
       ],
     };

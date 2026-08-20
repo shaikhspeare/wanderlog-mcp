@@ -195,60 +195,62 @@ export async function editNote(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const targets = findEditTargets(trip, args.old_text, args.day);
-
-    if (targets.length === 0) {
-      throw new WanderlogNotFoundError("Note", args.old_text);
-    }
-
-    if (targets.length > 1) {
-      const lines = targets
-        .slice(0, 5)
-        .map((t, i) => `  ${i + 1}. ${t.preview}`)
-        .join("\n");
-      const suffix = targets.length > 5 ? `\n  (${targets.length - 5} more…)` : "";
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.old_text}" matches ${targets.length} notes:\n${lines}${suffix}\n\nCall again with a more specific substring to identify the one you want.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const targets = findEditTargets(trip, args.old_text, args.day);
+      if (targets.length === 0) {
+        throw new WanderlogNotFoundError("Note", args.old_text);
+      }
+      if (targets.length > 1) {
+        const lines = targets
+          .slice(0, 5)
+          .map((target, index) => `  ${index + 1}. ${target.preview}`)
+          .join("\n");
+        const suffix = targets.length > 5 ? `\n  (${targets.length - 5} more…)` : "";
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.old_text}" matches ${targets.length} notes:\n${lines}${suffix}\n\nCall again with a more specific substring to identify the one you want.`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
-      };
-    }
-
-    const target = targets[0]!;
-
-    if (target.kind === "rich-text" && target.crossesBoundary) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Cannot replace "${args.old_text}": the match crosses a formatting boundary (e.g. a link or bold section). Use a more specific substring that stays within one formatting run.`,
+        };
+      }
+      const target = targets[0]!;
+      if (target.kind === "rich-text" && target.crossesBoundary) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `Cannot replace "${args.old_text}": the match crosses a formatting boundary (e.g. a link or bold section). Use a more specific substring that stays within one formatting run.`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
-      };
-    }
-
-    let ops: Json0Op[];
-    if (target.kind === "rich-text") {
-      const deltaOps: Array<Record<string, unknown>> = [];
-      if (target.offset > 0) deltaOps.push({ retain: target.offset });
-      deltaOps.push({ delete: target.matchedLen });
-      if (args.new_text) deltaOps.push({ insert: args.new_text });
-      ops = [{ p: target.fieldPath, t: "rich-text", o: deltaOps }];
-    } else {
-      const newValue =
-        target.oldValue.slice(0, target.offset) +
-        args.new_text +
-        target.oldValue.slice(target.offset + target.matchedLen);
-      ops = [{ p: target.fieldPath, od: target.oldValue, oi: newValue }];
-    }
-
-    await submitOp(ctx, args.trip_key, ops);
+        };
+      }
+      let ops: Json0Op[];
+      if (target.kind === "rich-text") {
+        const deltaOps: Array<Record<string, unknown>> = [];
+        if (target.offset > 0) deltaOps.push({ retain: target.offset });
+        deltaOps.push({ delete: target.matchedLen });
+        if (args.new_text) deltaOps.push({ insert: args.new_text });
+        ops = [{ p: target.fieldPath, t: "rich-text", o: deltaOps }];
+      } else {
+        const newValue =
+          target.oldValue.slice(0, target.offset) +
+          args.new_text +
+          target.oldValue.slice(target.offset + target.matchedLen);
+        ops = [{ p: target.fieldPath, od: target.oldValue, oi: newValue }];
+      }
+      await submit(ops);
+      return { targetLabel: target.label, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
 
     const oldPreview = previewText(args.old_text);
     const newPreview = previewText(args.new_text || "(empty)");
@@ -256,7 +258,7 @@ export async function editNote(
       content: [
         {
           type: "text",
-          text: `Updated ${target.label} in "${trip.title}". Changed "${oldPreview}" → "${newPreview}".`,
+          text: `Updated ${result.targetLabel} in "${result.tripTitle}". Changed "${oldPreview}" → "${newPreview}".`,
         },
       ],
     };

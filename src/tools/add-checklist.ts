@@ -55,24 +55,28 @@ export async function addChecklist(
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
     const userId = requireUserId(ctx);
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    const target = findTargetSection(trip, args.day);
-
-    const block = buildChecklistBlock(args.items, args.title ?? "", userId);
-    const insertIndex = target.section.blocks.length;
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "sections", target.index, "blocks", insertIndex],
-        li: block,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const target = findTargetSection(trip, args.day);
+      const block = buildChecklistBlock(args.items, args.title ?? "", userId);
+      const ops: Json0Op[] = [
+        {
+          p: [
+            "itinerary",
+            "sections",
+            target.index,
+            "blocks",
+            target.section.blocks.length,
+          ],
+          li: block,
+        },
+      ];
+      await submit(ops);
+      return { targetLabel: target.label, tripTitle: trip.title };
+    });
 
     const titlePart = args.title ? `"${args.title}" ` : "";
-    const text = `Added checklist ${titlePart}(${args.items.length} items) to ${target.label} in "${trip.title}".`;
+    const text = `Added checklist ${titlePart}(${args.items.length} items) to ${result.targetLabel} in "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

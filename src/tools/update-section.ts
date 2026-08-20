@@ -49,63 +49,59 @@ export async function updateSection(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    const found = findSectionByRef(trip, args.section);
-    if (!found) {
-      throw new WanderlogValidationError(
-        `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
-      );
-    }
-
-    const { index, section } = found;
-
-    if (section.mode === "dayPlan") {
-      throw new WanderlogValidationError(
-        `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`,
-      );
-    }
-
-    if (findPlacesToVisitSection(trip)?.index === index) {
-      throw new WanderlogValidationError(
-        `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`,
-      );
-    }
-
-    if (SYSTEM_SECTION_TYPES.has(section.type)) {
-      throw new WanderlogValidationError(
-        `The "${section.heading || section.type}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`,
-      );
-    }
-
-    const oldHeading = found.section.heading;
     const newHeading = args.heading;
-
-    if (oldHeading === newHeading) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Section heading is already "${newHeading || "(untitled)"}" — no change made.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const found = findSectionByRef(trip, args.section);
+      if (!found) {
+        throw new WanderlogValidationError(
+          `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+        );
+      }
+      const { index, section } = found;
+      if (section.mode === "dayPlan") {
+        throw new WanderlogValidationError(
+          `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`,
+        );
+      }
+      if (findPlacesToVisitSection(trip)?.index === index) {
+        throw new WanderlogValidationError(
+          `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`,
+        );
+      }
+      if (SYSTEM_SECTION_TYPES.has(section.type)) {
+        throw new WanderlogValidationError(
+          `The "${section.heading || section.type}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`,
+        );
+      }
+      const oldHeading = section.heading;
+      if (oldHeading === newHeading) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `Section heading is already "${newHeading || "(untitled)"}" — no change made.`,
+              },
+            ],
           },
-        ],
-      };
-    }
+        };
+      }
+      const ops: Json0Op[] = [
+        {
+          p: ["itinerary", "sections", index, "heading"],
+          od: oldHeading,
+          oi: newHeading,
+        },
+      ];
+      await submit(ops);
+      return { oldHeading, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
 
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "sections", found.index, "heading"],
-        od: oldHeading,
-        oi: newHeading,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
-
-    const oldLabel = oldHeading || "(untitled)";
+    const oldLabel = result.oldHeading || "(untitled)";
     const newLabel = newHeading || "(untitled)";
-    const text = `Renamed section "${oldLabel}" → "${newLabel}" in "${trip.title}".`;
+    const text = `Renamed section "${oldLabel}" → "${newLabel}" in "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

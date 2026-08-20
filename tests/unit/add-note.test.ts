@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
-import type { Json0Op } from "../../src/ot/apply.ts";
+import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
 import {
   addNote,
   addNoteInputSchema,
@@ -13,6 +13,7 @@ function makeFakeContext(trip: TripPlan): {
   submittedOps: Json0Op[][];
 } {
   const submittedOps: Json0Op[][] = [];
+  const entry = { snapshot: structuredClone(trip), version: 1, geos: [] };
   const ctx = {
     userId: 3656632,
     pool: {
@@ -25,8 +26,11 @@ function makeFakeContext(trip: TripPlan): {
       }),
     },
     tripCache: {
-      getEntry: async () => ({ snapshot: structuredClone(trip) }),
-      applyLocalOp: () => {},
+      getEntry: async () => entry,
+      applyLocalOp: (_key: string, ops: Json0Op[], version: number) => {
+        entry.snapshot = applyOp(entry.snapshot, ops);
+        entry.version = version;
+      },
       invalidate: () => {},
     },
   } as unknown as AppContext;

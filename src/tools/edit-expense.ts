@@ -175,51 +175,54 @@ export async function editExpense(
       );
     }
 
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const matches = findExpenseMatches(trip, {
-      description: args.description,
-      date: args.date,
-      amount: args.amount,
-      currency: args.currency,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const matches = findExpenseMatches(trip, {
+        description: args.description,
+        date: args.date,
+        amount: args.amount,
+        currency: args.currency,
+      });
+      if (matches.length === 0) {
+        throw new WanderlogNotFoundError("Expense", args.description);
+      }
+      if (matches.length > 1) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
+              },
+            ],
+            isError: true,
+          },
+        };
+      }
+      const { index, expense } = matches[0]!;
+      const { ops, changes } = buildEditOps(expense, index, args);
+      if (ops.length === 0) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `No changes — ${formatExpense(expense)} already has those values.`,
+              },
+            ],
+          },
+        };
+      }
+      await submit(ops);
+      return { changes, expense, tripTitle: trip.title };
     });
-
-    if (matches.length === 0) {
-      throw new WanderlogNotFoundError("Expense", args.description);
-    }
-
-    if (matches.length > 1) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
-          },
-        ],
-        isError: true,
-      };
-    }
-
-    const { index, expense } = matches[0]!;
-    const { ops, changes } = buildEditOps(expense, index, args);
-
-    if (ops.length === 0) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `No changes — ${formatExpense(expense)} already has those values.`,
-          },
-        ],
-      };
-    }
-
-    await submitOp(ctx, args.trip_key, ops);
+    if ("response" in result && result.response) return result.response;
 
     return {
       content: [
         {
           type: "text",
-          text: `Updated expense ${formatExpense(expense)} in "${trip.title}": ${changes.join(", ")}.`,
+          text: `Updated expense ${formatExpense(result.expense)} in "${result.tripTitle}": ${result.changes.join(", ")}.`,
         },
       ],
     };

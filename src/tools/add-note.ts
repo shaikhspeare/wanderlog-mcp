@@ -5,6 +5,7 @@ import type { Json0Op } from "../ot/apply.js";
 import type { TripPlan } from "../types.js";
 import {
   buildNoteBlock,
+  findBlockById,
   findSectionByRef,
   findTargetSection,
   requireUserId,
@@ -93,32 +94,48 @@ export async function addNote(
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
     const userId = requireUserId(ctx);
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const target = evaluateTargetSection(trip, args);
+      const block = buildNoteBlock(userId);
+      const insertOps: Json0Op[] = [
+        {
+          p: [
+            "itinerary",
+            "sections",
+            target.index,
+            "blocks",
+            target.section.blocks.length,
+          ],
+          li: block,
+        },
+      ];
+      await submit(insertOps);
 
-    const target = evaluateTargetSection(trip, args);
-
-    // Step 1: Insert the note block with placeholder text
-    const block = buildNoteBlock(userId);
-    const insertIndex = target.section.blocks.length;
-    const blockPath = ["itinerary", "sections", target.index, "blocks", insertIndex];
-    const insertOps: Json0Op[] = [{ p: blockPath, li: block }];
-
-    await submitOp(ctx, args.trip_key, insertOps);
-
-    // Step 2: Set the note text via rich-text subtype op
-    const textOps: Json0Op[] = [
-      {
-        p: [...blockPath, "text"],
-        t: "rich-text",
-        o: [{ insert: `${args.text}\n` }],
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, textOps);
+      const inserted = findBlockById(entry.snapshot, block.id as number);
+      if (!inserted || inserted.block.type !== "note") {
+        throw new WanderlogError("Inserted note could not be found", "stale_target");
+      }
+      const textOps: Json0Op[] = [
+        {
+          p: [
+            "itinerary",
+            "sections",
+            inserted.sectionIndex,
+            "blocks",
+            inserted.blockIndex,
+            "text",
+          ],
+          t: "rich-text",
+          o: [{ insert: `${args.text}\n` }],
+        },
+      ];
+      await submit(textOps);
+      return { targetLabel: target.label, tripTitle: entry.snapshot.title };
+    });
 
     const preview = args.text.length > 60 ? `${args.text.slice(0, 57)}…` : args.text;
-    const text = `Added note "${preview}" to ${target.label} in "${trip.title}".`;
+    const text = `Added note "${preview}" to ${result.targetLabel} in "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

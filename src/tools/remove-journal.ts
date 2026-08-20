@@ -37,38 +37,44 @@ export async function removeJournal(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const matches = findStopMatches(trip, { title: args.title, date: args.date });
-
-    if (matches.length === 0) {
-      throw new WanderlogNotFoundError("Journal stop", args.title);
-    }
-
-    if (matches.length > 1) {
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.title}" matches ${matches.length} journal stops:\n${formatStopCandidateList(matches)}\n\nRe-call with a more specific title, or add a date filter to pick one.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const matches = findStopMatches(trip, { title: args.title, date: args.date });
+      if (matches.length === 0) {
+        throw new WanderlogNotFoundError("Journal stop", args.title);
+      }
+      if (matches.length > 1) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.title}" matches ${matches.length} journal stops:\n${formatStopCandidateList(matches)}\n\nRe-call with a more specific title, or add a date filter to pick one.`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
-      };
-    }
-
-    const { index, stop } = matches[0]!;
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "journal", "stops", index],
-        ld: stop,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
+        };
+      }
+      const { index, stop } = matches[0]!;
+      const stopId = stop.id;
+      const ops: Json0Op[] = [
+        { p: ["itinerary", "journal", "stops", index], ld: stop },
+      ];
+      await submit(ops);
+      if (entry.snapshot.itinerary.journal?.stops?.some((item) => item.id === stopId)) {
+        throw new WanderlogError("Removed journal stop is still present", "stale_target");
+      }
+      return { stop, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
 
     return {
       content: [
-        { type: "text", text: `Removed journal stop ${formatStop(stop)} from "${trip.title}".` },
+        {
+          type: "text",
+          text: `Removed journal stop ${formatStop(result.stop)} from "${result.tripTitle}".`,
+        },
       ],
     };
   } catch (err) {

@@ -129,63 +129,72 @@ export async function editJournal(
       );
     }
 
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const ops: Json0Op[] = [];
-    const changes: string[] = [];
-    let stopLabel = "";
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const ops: Json0Op[] = [];
+      const changes: string[] = [];
+      let stopLabel = "";
 
-    if (hasStopEdit) {
-      if (!args.title) {
-        throw new WanderlogValidationError(
-          "Provide 'title' to identify which journal stop to edit.",
-        );
-      }
-      const matches = findStopMatches(trip, { title: args.title, date: args.date });
-      if (matches.length === 0) {
-        throw new WanderlogNotFoundError("Journal stop", args.title);
-      }
-      if (matches.length > 1) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `"${args.title}" matches ${matches.length} journal stops:\n${formatStopCandidateList(matches)}\n\nRe-call with a more specific title, or add a date filter to pick one.`,
+      if (hasStopEdit) {
+        if (!args.title) {
+          throw new WanderlogValidationError(
+            "Provide 'title' to identify which journal stop to edit.",
+          );
+        }
+        const matches = findStopMatches(trip, { title: args.title, date: args.date });
+        if (matches.length === 0) {
+          throw new WanderlogNotFoundError("Journal stop", args.title);
+        }
+        if (matches.length > 1) {
+          return {
+            response: {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `"${args.title}" matches ${matches.length} journal stops:\n${formatStopCandidateList(matches)}\n\nRe-call with a more specific title, or add a date filter to pick one.`,
+                },
+              ],
+              isError: true,
             },
-          ],
-          isError: true,
+          };
+        }
+        const { index, stop } = matches[0]!;
+        stopLabel = formatStop(stop);
+        const built = buildStopOps(stop, index, args);
+        ops.push(...built.ops);
+        changes.push(...built.changes);
+      }
+
+      if (hasSummaryEdit) {
+        const current = trip.itinerary.journal?.summary;
+        if (args.new_summary !== current) {
+          ops.push(replaceField(["itinerary", "journal", "summary"], current, args.new_summary));
+          changes.push("journal summary");
+        }
+      }
+
+      if (ops.length === 0) {
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `No changes — those values already match in "${trip.title}".`,
+              },
+            ],
+          },
         };
       }
-      const { index, stop } = matches[0]!;
-      stopLabel = formatStop(stop);
-      const built = buildStopOps(stop, index, args);
-      ops.push(...built.ops);
-      changes.push(...built.changes);
-    }
-
-    if (hasSummaryEdit) {
-      const current = trip.itinerary.journal?.summary;
-      if (args.new_summary !== current) {
-        ops.push(replaceField(["itinerary", "journal", "summary"], current, args.new_summary));
-        changes.push("journal summary");
-      }
-    }
-
-    if (ops.length === 0) {
-      return {
-        content: [
-          { type: "text", text: `No changes — those values already match in "${trip.title}".` },
-        ],
-      };
-    }
-
-    await submitOp(ctx, args.trip_key, ops);
-
-    const target = stopLabel ? `stop ${stopLabel}` : "journal";
+      await submit(ops);
+      return { stopLabel, changes, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
+    const target = result.stopLabel ? `stop ${result.stopLabel}` : "journal";
     return {
       content: [
         {
           type: "text",
-          text: `Updated ${target} in "${trip.title}": ${changes.join(", ")}.`,
+          text: `Updated ${target} in "${result.tripTitle}": ${result.changes.join(", ")}.`,
         },
       ],
     };

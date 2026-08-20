@@ -52,35 +52,33 @@ export async function addSection(
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
     requireUserId(ctx);
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    let insertIndex: number;
-    if (args.after_section) {
-      const found = findSectionByRef(trip, args.after_section);
-      if (!found) {
-        throw new WanderlogValidationError(
-          `Section "${args.after_section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
-        );
-      }
-      insertIndex = found.index + 1;
-    } else {
-      insertIndex = trip.itinerary.sections.length;
-    }
-
     const heading = args.heading ?? "";
-    const section = buildSectionObject(heading);
-
-    const ops: Json0Op[] = [
-      { p: ["itinerary", "sections", insertIndex], li: section },
-    ];
-    await submitOp(ctx, args.trip_key, ops);
+    const tripTitle = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      let insertIndex: number;
+      if (args.after_section) {
+        const found = findSectionByRef(trip, args.after_section);
+        if (!found) {
+          throw new WanderlogValidationError(
+            `Section "${args.after_section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+          );
+        }
+        insertIndex = found.index + 1;
+      } else {
+        insertIndex = trip.itinerary.sections.length;
+      }
+      const ops: Json0Op[] = [
+        { p: ["itinerary", "sections", insertIndex], li: buildSectionObject(heading) },
+      ];
+      await submit(ops);
+      return trip.title;
+    });
 
     const headingLabel = heading || "(untitled)";
     const positionLabel = args.after_section
       ? `after "${args.after_section}"`
       : "at the end";
-    const text = `Added section "${headingLabel}" ${positionLabel} in "${trip.title}".`;
+    const text = `Added section "${headingLabel}" ${positionLabel} in "${tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

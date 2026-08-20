@@ -80,11 +80,9 @@ export async function addTransit(
 
     const userId = requireUserId(ctx);
     const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
     const [fromPlace, toPlace] = await Promise.all([
-      resolveEndpointPlace(ctx, trip, entry.geos, args.from),
-      resolveEndpointPlace(ctx, trip, entry.geos, args.to),
+      resolveEndpointPlace(ctx, entry.snapshot, entry.geos, args.from),
+      resolveEndpointPlace(ctx, entry.snapshot, entry.geos, args.to),
     ]);
 
     const depart: TransitEndpoint = {
@@ -98,18 +96,19 @@ export async function addTransit(
       time: args.arrive_time,
     };
 
-    const block = buildTransitBlock(args.type, userId, {
-      carrier: args.carrier,
-      depart,
-      arrive,
-      confirmationNumber: args.confirmation_number,
-      notes: args.notes,
+    const tripTitle = await submitOp(ctx, args.trip_key, async (lockedEntry, submit) => {
+      const block = buildTransitBlock(args.type, userId, {
+        carrier: args.carrier,
+        depart,
+        arrive,
+        confirmationNumber: args.confirmation_number,
+        notes: args.notes,
+      });
+      await submit([sectionInsertOp(lockedEntry.snapshot, "transit", block)]);
+      return lockedEntry.snapshot.title;
     });
 
-    const op = sectionInsertOp(trip, "transit", block);
-    await submitOp(ctx, args.trip_key, [op]);
-
-    const text = `Added ${args.type} ${args.carrier} to "${trip.title}" · ${fromPlace.name} → ${toPlace.name} · ${args.depart_date} ${args.depart_time}.`;
+    const text = `Added ${args.type} ${args.carrier} to "${tripTitle}" · ${fromPlace.name} → ${toPlace.name} · ${args.depart_date} ${args.depart_time}.`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

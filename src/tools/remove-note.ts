@@ -93,41 +93,44 @@ export async function removeNote(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
-    const matches = findNoteMatches(trip, args.text, args.day);
-
-    if (matches.length === 0) {
-      throw new WanderlogNotFoundError("Note", args.text);
-    }
-
-    if (matches.length > 1) {
-      const lines = matches
-        .slice(0, 5)
-        .map((m, i) => `  ${i + 1}. "${notePreview(m.plainText)}"`)
-        .join("\n");
-      const suffix = matches.length > 5 ? `\n  (${matches.length - 5} more…)` : "";
-      return {
-        content: [
-          {
-            type: "text",
-            text: `"${args.text}" matches ${matches.length} notes:\n${lines}${suffix}\n\nCall again with a more specific substring to identify the one you want.`,
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      const matches = findNoteMatches(trip, args.text, args.day);
+      if (matches.length === 0) {
+        throw new WanderlogNotFoundError("Note", args.text);
+      }
+      if (matches.length > 1) {
+        const lines = matches
+          .slice(0, 5)
+          .map((m, i) => `  ${i + 1}. "${notePreview(m.plainText)}"`)
+          .join("\n");
+        const suffix = matches.length > 5 ? `\n  (${matches.length - 5} more…)` : "";
+        return {
+          response: {
+            content: [
+              {
+                type: "text" as const,
+                text: `"${args.text}" matches ${matches.length} notes:\n${lines}${suffix}\n\nCall again with a more specific substring to identify the one you want.`,
+              },
+            ],
+            isError: true,
           },
-        ],
-        isError: true,
-      };
-    }
-
-    const { sectionIndex, blockIndex, block, plainText } = matches[0]!;
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "sections", sectionIndex, "blocks", blockIndex],
-        ld: block,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
-
-    const text = `Removed note "${notePreview(plainText)}" from "${trip.title}".`;
+        };
+      }
+      const { sectionIndex, blockIndex, block, plainText } = matches[0]!;
+      const blockId = block.id;
+      const ops: Json0Op[] = [
+        { p: ["itinerary", "sections", sectionIndex, "blocks", blockIndex], ld: block },
+      ];
+      await submit(ops);
+      const remains = entry.snapshot.itinerary.sections.some((section) =>
+        section.blocks.some((candidate) => candidate.id === blockId),
+      );
+      if (remains) throw new WanderlogError("Removed note is still present", "stale_target");
+      return { plainText, tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
+    const text = `Removed note "${notePreview(result.plainText)}" from "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

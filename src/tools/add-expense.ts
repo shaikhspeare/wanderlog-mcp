@@ -82,78 +82,80 @@ export async function addExpense(
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
     const userId = requireUserId(ctx);
-    const entry = await ctx.tripCache.getEntry(args.trip_key);
-    const trip = entry.snapshot;
-
-    // Linking to a place is optional — Wanderlog accepts unlinked expenses
-    // (blockId: null), which appear in the budget total without a place.
-    let blockId: number | null = null;
-    let associatedDate: string | null = null;
-    if (args.place) {
-      const result = resolvePlaceRef(trip, args.place);
-      if (result.kind === "ambiguous") {
-        const lines = result.candidates.map((c, i) => {
-          const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
-          const loc = c.section.date ? `day ${c.section.date}` : c.section.heading || "unscheduled";
-          return `  ${i + 1}. ${name} (${loc})`;
-        });
-        const text = `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference.`;
-        return { content: [{ type: "text", text }] };
-      }
-      if (result.kind === "none") {
-        throw new WanderlogError(
-          `No place matching "${args.place}" found in "${trip.title}"`,
-          "place_ref_not_found",
-          {
-            hint: "Add the place to the trip first with wanderlog_add_place, or omit 'place' to log an unlinked expense.",
-            followUps: [
-              `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see existing places.`,
-            ],
-          },
-        );
-      }
-      blockId = result.match.block.id;
-      associatedDate = result.match.section.date;
-    }
-
     const expenseDate = args.date ?? new Date().toISOString().slice(0, 10);
-
-    // Build the expense object matching Wanderlog's schema
-    const expense: Record<string, unknown> = {
-      id: generateBlockId(),
-      amount: {
-        amount: args.amount,
-        currencyCode: args.currency.toUpperCase(),
-      },
-      category: args.category,
-      description: args.description,
-      date: expenseDate,
-      paidByUserId: userId,
-      paidByUser: { type: "registered", id: userId },
-      splitWith: { type: "individuals", users: [] },
-      blockId: blockId,
-      associatedDate: associatedDate ?? expenseDate,
-    };
-
-    // Find the current expenses array length to insert at the end
-    const budget = (trip.itinerary as Record<string, unknown>).budget as
-      | Record<string, unknown>
-      | undefined;
-    const expenses = (budget?.expenses as unknown[] | undefined) ?? [];
-    const insertIndex = expenses.length;
-
-    const ops: Json0Op[] = [
-      {
-        p: ["itinerary", "budget", "expenses", insertIndex],
-        li: expense,
-      },
-    ];
-
-    await submitOp(ctx, args.trip_key, ops);
+    const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
+      const trip = entry.snapshot;
+      let blockId: number | null = null;
+      let associatedDate: string | null = null;
+      if (args.place) {
+        const resolved = resolvePlaceRef(trip, args.place);
+        if (resolved.kind === "ambiguous") {
+          const lines = resolved.candidates.map((c, i) => {
+            const name = isPlaceBlock(c.block) ? c.block.place.name : `block #${c.block.id}`;
+            const loc = c.section.date
+              ? `day ${c.section.date}`
+              : c.section.heading || "unscheduled";
+            return `  ${i + 1}. ${name} (${loc})`;
+          });
+          return {
+            response: {
+              content: [
+                {
+                  type: "text" as const,
+                  text: `Multiple places match "${args.place}":\n${lines.join("\n")}\n\nRetry with a more specific reference.`,
+                },
+              ],
+            },
+          };
+        }
+        if (resolved.kind === "none") {
+          throw new WanderlogError(
+            `No place matching "${args.place}" found in "${trip.title}"`,
+            "place_ref_not_found",
+            {
+              hint: "Add the place to the trip first with wanderlog_add_place, or omit 'place' to log an unlinked expense.",
+              followUps: [
+                `Call wanderlog_get_trip with trip_key "${args.trip_key}" to see existing places.`,
+              ],
+            },
+          );
+        }
+        blockId = resolved.match.block.id;
+        associatedDate = resolved.match.section.date;
+      }
+      const expense: Record<string, unknown> = {
+        id: generateBlockId(),
+        amount: {
+          amount: args.amount,
+          currencyCode: args.currency.toUpperCase(),
+        },
+        category: args.category,
+        description: args.description,
+        date: expenseDate,
+        paidByUserId: userId,
+        paidByUser: { type: "registered", id: userId },
+        splitWith: { type: "individuals", users: [] },
+        blockId,
+        associatedDate: associatedDate ?? expenseDate,
+      };
+      const budget = (trip.itinerary as Record<string, unknown>).budget as
+        | Record<string, unknown>
+        | undefined;
+      const expenses = (budget?.expenses as unknown[] | undefined) ?? [];
+      const ops: Json0Op[] = [
+        {
+          p: ["itinerary", "budget", "expenses", expenses.length],
+          li: expense,
+        },
+      ];
+      await submit(ops);
+      return { tripTitle: trip.title };
+    });
+    if ("response" in result && result.response) return result.response;
 
     const currencyLabel = args.currency.toUpperCase();
     const linkLabel = args.place ? ` (linked to ${args.place})` : "";
-    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}"${linkLabel} in "${trip.title}".`;
+    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}"${linkLabel} in "${result.tripTitle}".`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =
