@@ -4,7 +4,7 @@ import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import {
   buildChecklistBlock,
-  findTargetSection,
+  findBlockTargetSection,
   requireUserId,
   submitOp,
 } from "./shared.js";
@@ -26,7 +26,14 @@ export const addChecklistInputSchema = {
     .string()
     .optional()
     .describe(
-      "Optional day to add the checklist to. Accepts 'day 2', 'May 4', or ISO '2026-05-04'. Omit to add to the 'Places to visit' list.",
+      "Optional day to add the checklist to. Accepts 'day 2', 'May 4', or ISO '2026-05-04'. If 'section' is also provided, the section takes precedence. Omit both to add to the 'Places to visit' list.",
+    ),
+  section: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional undated section to add the checklist to, identified by its heading (e.g. 'Notes', 'Trip Preparations', or 'Places to visit'). Matching is case-insensitive and takes precedence over 'day'. Omit both to add to the 'Places to visit' list.",
     ),
 };
 
@@ -35,9 +42,13 @@ Adds a checklist to a Wanderlog trip. Each item starts unchecked and can be tick
 Wanderlog app.
 
 Add at least one checklist per trip. Common patterns:
-- On the trip (no day): a packing list or "before departure" checklist
+- In a custom section: a packing list or "before departure" checklist
 - On day 1: an arrival-day checklist ("pick up Oyster card", "check into hotel", "buy SIM")
 - On specific days: day-of tasks ("bring swimsuit", "charge camera", "carry cash for market")
+
+Supply "day" for a dated itinerary day or "section" for an undated section such as "Notes"
+or "Trip Preparations". When both are provided, "section" takes precedence. Omit both to add
+to the default "Places to visit" list.
 
 Returns a confirmation including the checklist title and item count.
 `.trim();
@@ -47,6 +58,7 @@ type Args = {
   items: string[];
   title?: string;
   day?: string;
+  section?: string;
 };
 
 export async function addChecklist(
@@ -57,7 +69,7 @@ export async function addChecklist(
     const userId = requireUserId(ctx);
     const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
-      const target = findTargetSection(trip, args.day);
+      const target = findBlockTargetSection(trip, args, "checklist");
       const block = buildChecklistBlock(args.items, args.title ?? "", userId);
       const ops: Json0Op[] = [
         {

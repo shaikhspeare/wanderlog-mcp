@@ -1,16 +1,13 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
-import { WanderlogError, WanderlogValidationError } from "../errors.js";
+import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import type { TripPlan } from "../types.js";
 import {
   buildNoteBlock,
   findBlockById,
-  findSectionByRef,
-  findTargetSection,
+  findBlockTargetSection,
   requireUserId,
   submitOp,
-  type TargetSection,
 } from "./shared.js";
 
 export const addNoteInputSchema = z
@@ -60,34 +57,6 @@ Returns a confirmation of where the note was added.
 
 type Args = z.infer<typeof addNoteInputSchema>;
 
-function evaluateTargetSection(
-  trip: TripPlan,
-  { day, section }: Pick<Args, "day" | "section">,
-): TargetSection {
-  if (section !== undefined) {
-    const found = findSectionByRef(trip, section);
-    if (!found) {
-      throw new WanderlogValidationError(
-        `Section "${section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
-      );
-    }
-    if (found.section.mode === "dayPlan") {
-      throw new WanderlogValidationError(
-        `Section "${found.section.heading || section}" is a dated section. Use the "day" parameter to add a note to an itinerary day.`,
-      );
-    }
-    return {
-      index: found.index,
-      section: found.section,
-      label: `section "${found.section.heading || section}"`,
-    };
-  }
-
-  if (day !== undefined) return findTargetSection(trip, day);
-
-  return findTargetSection(trip);
-}
-
 export async function addNote(
   ctx: AppContext,
   args: Args,
@@ -96,7 +65,7 @@ export async function addNote(
     const userId = requireUserId(ctx);
     const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
-      const target = evaluateTargetSection(trip, args);
+      const target = findBlockTargetSection(trip, args, "note");
       const block = buildNoteBlock(userId);
       const insertOps: Json0Op[] = [
         {

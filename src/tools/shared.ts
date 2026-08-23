@@ -350,6 +350,38 @@ export function findTargetSection(
   return { index: places.index, section: places.section, label: "places to visit" };
 }
 
+/**
+ * Resolves a block target when callers support both dated days and named
+ * undated sections. A named section takes precedence over a day, matching the
+ * public add-note/add-checklist contract.
+ */
+export function findBlockTargetSection(
+  trip: TripPlan,
+  target: { day?: string; section?: string },
+  blockLabel: string,
+): TargetSection {
+  if (target.section !== undefined) {
+    const found = findSectionByRef(trip, target.section);
+    if (!found) {
+      throw new WanderlogValidationError(
+        `Section "${target.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+      );
+    }
+    if (found.section.mode === "dayPlan") {
+      throw new WanderlogValidationError(
+        `Section "${found.section.heading || target.section}" is a dated section. Use the "day" parameter to add a ${blockLabel} to an itinerary day.`,
+      );
+    }
+    return {
+      index: found.index,
+      section: found.section,
+      label: `section "${found.section.heading || target.section}"`,
+    };
+  }
+
+  return findTargetSection(trip, target.day);
+}
+
 /** Build a note block matching the shape captured from the Wanderlog UI. */
 export function buildNoteBlock(userId: number): Record<string, unknown> {
   return {
