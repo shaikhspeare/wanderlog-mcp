@@ -4,7 +4,7 @@ import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import {
   buildSectionObject,
-  findSectionByRef,
+  resolveSectionRef,
   requireUserId,
   submitOp,
 } from "./shared.js";
@@ -38,6 +38,8 @@ The new section is empty; add places to it with wanderlog_add_place by passing t
 heading as the "section" parameter, or use wanderlog_add_note / wanderlog_add_checklist.
 
 Returns the heading and position of the inserted section.
+The heading must be unique among undated sections; duplicate or ambiguous insertion targets
+are rejected without making a change.
 `.trim();
 
 type Args = {
@@ -55,14 +57,34 @@ export async function addSection(
     const heading = args.heading ?? "";
     const tripTitle = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
+      const normalizedHeading = heading.trim().toLowerCase();
+      const duplicate =
+        normalizedHeading === "places" ||
+        normalizedHeading === "places to visit" ||
+        trip.itinerary.sections.some(
+        (section) =>
+          section.mode !== "dayPlan" &&
+          section.heading.trim().toLowerCase() === normalizedHeading,
+        );
+      if (duplicate) {
+        throw new WanderlogValidationError(
+          `A section named "${heading || "(untitled)"}" already exists in trip "${trip.title}". Choose a unique heading so future mutations can target it safely.`,
+        );
+      }
       let insertIndex: number;
       if (args.after_section) {
-        const found = findSectionByRef(trip, args.after_section);
-        if (!found) {
+        const resolved = resolveSectionRef(trip, args.after_section);
+        if (resolved.kind === "none") {
           throw new WanderlogValidationError(
             `Section "${args.after_section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
           );
         }
+        if (resolved.kind === "ambiguous") {
+          throw new WanderlogValidationError(
+            `Section reference "${args.after_section}" is ambiguous: ${resolved.candidates.length} sections have that heading. Rename the duplicates in Wanderlog before choosing an insertion point.`,
+          );
+        }
+        const found = resolved.match;
         insertIndex = found.index + 1;
       } else {
         insertIndex = trip.itinerary.sections.length;

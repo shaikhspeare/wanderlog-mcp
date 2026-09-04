@@ -3,8 +3,8 @@ import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import {
-  findPlacesToVisitSection,
-  findSectionByRef,
+  isCustomSection,
+  resolveSectionRef,
   submitOp,
 } from "./shared.js";
 
@@ -34,6 +34,8 @@ their current headings if you are unsure. Pass an empty string for "heading" to 
 section title.
 
 Returns a confirmation showing the old and new heading.
+The current heading must identify exactly one section and the new heading must not duplicate
+another undated section.
 `.trim();
 
 type Args = {
@@ -41,8 +43,6 @@ type Args = {
   section: string;
   heading: string;
 };
-
-const SYSTEM_SECTION_TYPES = new Set(["hotels", "flights", "transit"]);
 
 export async function updateSection(
   ctx: AppContext,
@@ -52,26 +52,27 @@ export async function updateSection(
     const newHeading = args.heading;
     const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
-      const found = findSectionByRef(trip, args.section);
-      if (!found) {
+      const resolved = resolveSectionRef(trip, args.section);
+      if (resolved.kind === "none") {
         throw new WanderlogValidationError(
           `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
         );
       }
+      if (resolved.kind === "ambiguous") {
+        throw new WanderlogValidationError(
+          `Section reference "${args.section}" is ambiguous: ${resolved.candidates.length} sections have that heading. Rename the duplicates in Wanderlog before retrying.`,
+        );
+      }
+      const found = resolved.match;
       const { index, section } = found;
-      if (section.mode === "dayPlan") {
+      if (!isCustomSection(trip, index)) {
+        const reason = section.mode === "dayPlan"
+          ? `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`
+          : section.heading === "Places to visit"
+            ? `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`
+            : `The "${section.heading || section.type}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`;
         throw new WanderlogValidationError(
-          `Day sections cannot be renamed here. Use wanderlog_rename_day to change a day's heading instead.`,
-        );
-      }
-      if (findPlacesToVisitSection(trip)?.index === index) {
-        throw new WanderlogValidationError(
-          `The "Places to visit" section cannot be renamed — it is the trip's default place list. Use wanderlog_get_trip to see your custom sections.`,
-        );
-      }
-      if (SYSTEM_SECTION_TYPES.has(section.type)) {
-        throw new WanderlogValidationError(
-          `The "${section.heading || section.type}" section is a system section and cannot be renamed. Use wanderlog_get_trip to see your custom sections.`,
+          reason,
         );
       }
       const oldHeading = section.heading;
@@ -86,6 +87,21 @@ export async function updateSection(
             ],
           },
         };
+      }
+      const normalizedHeading = newHeading.trim().toLowerCase();
+      const duplicate =
+        normalizedHeading === "places" ||
+        normalizedHeading === "places to visit" ||
+        trip.itinerary.sections.some(
+          (candidate) =>
+            candidate.id !== section.id &&
+            candidate.mode !== "dayPlan" &&
+            candidate.heading.trim().toLowerCase() === normalizedHeading,
+        );
+      if (duplicate) {
+        throw new WanderlogValidationError(
+          `A different section named "${newHeading || "(untitled)"}" already exists. Choose a unique heading so future mutations can target it safely.`,
+        );
       }
       const ops: Json0Op[] = [
         {

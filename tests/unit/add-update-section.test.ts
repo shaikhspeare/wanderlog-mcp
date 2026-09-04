@@ -5,6 +5,8 @@ import {
   buildSectionObject,
   findSectionByRef,
 } from "../../src/tools/shared.ts";
+import { addSection } from "../../src/tools/add-section.ts";
+import { deleteSection } from "../../src/tools/delete-section.ts";
 import { updateSection } from "../../src/tools/update-section.ts";
 import type { Section, TripPlan } from "../../src/types.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
@@ -20,6 +22,7 @@ function makeFakeContext(trip: TripPlan): {
   const submittedOps: Json0Op[][] = [];
   const entry = { snapshot: structuredClone(trip), version: 1, geos: [] };
   const ctx = {
+    userId: 3656632,
     pool: {
       get: () => ({
         isSubscribed: true,
@@ -109,6 +112,19 @@ describe("findSectionByRef", () => {
   it("returns null for an unknown reference", () => {
     const trip = fresh(checklistTrip);
     expect(findSectionByRef(trip, "Nonexistent Section")).toBeNull();
+  });
+
+  it("returns null instead of choosing the first duplicate heading", () => {
+    const trip = fresh(checklistTrip);
+    trip.itinerary.sections.unshift({
+      id: 99,
+      type: "textOnly",
+      mode: "placeList",
+      heading: "Notes",
+      date: null,
+      blocks: [],
+    });
+    expect(findSectionByRef(trip, "Notes")).toBeNull();
   });
 });
 
@@ -270,5 +286,72 @@ describe("updateSection guards", () => {
       od: "Notes",
       oi: "Trip Notes",
     });
+  });
+});
+
+describe("custom section lifecycle safety", () => {
+  it("creates, renames, and deletes a uniquely named custom section", async () => {
+    const { ctx } = makeFakeContext(checklistTrip);
+    const added = await addSection(ctx, {
+      trip_key: "T",
+      heading: "Sights",
+      after_section: "Notes",
+    });
+    expect(added.isError).toBeUndefined();
+
+    const renamed = await updateSection(ctx, {
+      trip_key: "T",
+      section: "Sights",
+      heading: "Must See",
+    });
+    expect(renamed.isError).toBeUndefined();
+
+    const deleted = await deleteSection(ctx, {
+      trip_key: "T",
+      section: "Must See",
+    });
+    expect(deleted.isError).toBeUndefined();
+  });
+
+  it("rejects duplicate headings on create and rename", async () => {
+    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+    const added = await addSection(ctx, { trip_key: "T", heading: "notes" });
+    expect(added.isError).toBe(true);
+
+    const renamed = await updateSection(ctx, {
+      trip_key: "T",
+      section: "Notes",
+      heading: "Places to visit",
+    });
+    expect(renamed.isError).toBe(true);
+    expect(submittedOps).toHaveLength(0);
+  });
+
+  it("rejects ambiguous and day-section delete targets", async () => {
+    const trip = fresh(checklistTrip);
+    trip.itinerary.sections.unshift({
+      id: 99,
+      type: "textOnly",
+      mode: "placeList",
+      heading: "Notes",
+      date: null,
+      blocks: [],
+    });
+    const ambiguous = makeFakeContext(trip);
+    const ambiguousResult = await deleteSection(ambiguous.ctx, {
+      trip_key: "T",
+      section: "Notes",
+    });
+    expect(ambiguousResult.isError).toBe(true);
+    expect(ambiguousResult.content[0]!.text).toContain("ambiguous");
+    expect(ambiguous.submittedOps).toHaveLength(0);
+
+    const day = makeFakeContext(checklistTrip);
+    const dayResult = await deleteSection(day.ctx, {
+      trip_key: "T",
+      section: "Arrival day",
+    });
+    expect(dayResult.isError).toBe(true);
+    expect(day.submittedOps).toHaveLength(0);
   });
 });
