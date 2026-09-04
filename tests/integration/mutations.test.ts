@@ -10,6 +10,7 @@ import { createTrip } from "../../src/tools/create-trip.ts";
 import { deleteSection } from "../../src/tools/delete-section.ts";
 import { getTrip } from "../../src/tools/get-trip.ts";
 import { moveBlock } from "../../src/tools/move-block.ts";
+import { movePlace } from "../../src/tools/move-place.ts";
 import { removePlace } from "../../src/tools/remove-place.ts";
 import { updateTripDates } from "../../src/tools/update-trip-dates.ts";
 import { updateSection } from "../../src/tools/update-section.ts";
@@ -209,6 +210,42 @@ describe("Mutation tools (live round-trip)", () => {
     expect(trip.itinerary.sections.some((section) => section.heading === "Dining")).toBe(false);
     expect(trip.itinerary.sections.some((section) => section.heading === "Sights")).toBe(true);
   }, 45_000);
+
+  it("moves a place to another day with notes and times intact", async () => {
+    expect(tripKey).toBeDefined();
+    const added = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Praça do Comércio",
+      section: "Sights",
+      note: "Preserve this integration-test note",
+      start_time: "11:00",
+      end_time: "12:00",
+    });
+    if (added.isError) throw new Error(`add_place failed: ${added.content[0]!.text}`);
+
+    const moved = await movePlace(ctx, {
+      trip_key: tripKey!,
+      place_ref: "Praça do Comércio",
+      target_day: "day 2",
+    });
+    if (moved.isError) throw new Error(`move_place failed: ${moved.content[0]!.text}`);
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const day2 = trip.itinerary.sections.find(
+      (section) => section.mode === "dayPlan" && section.date === "2099-01-02",
+    );
+    const praça = day2?.blocks.find(
+      (block) => isPlaceBlock(block) && /praça do comércio/i.test(block.place.name),
+    );
+    expect(praça).toBeDefined();
+    if (praça && isPlaceBlock(praça)) {
+      expect(praça.startTime).toBe("11:00");
+      expect(praça.endTime).toBe("12:00");
+      expect(praça.text?.ops?.some(
+        (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
+      )).toBe(true);
+    }
+  }, 60_000);
 
   it("add_hotel adds a hotel with a check-in window", async () => {
     expect(tripKey).toBeDefined();
