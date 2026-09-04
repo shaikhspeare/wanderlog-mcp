@@ -4,10 +4,16 @@ import { addChecklist } from "../../src/tools/add-checklist.ts";
 import { addHotel } from "../../src/tools/add-hotel.ts";
 import { addNote } from "../../src/tools/add-note.ts";
 import { addPlace } from "../../src/tools/add-place.ts";
+import { addSection } from "../../src/tools/add-section.ts";
 import { createTrip } from "../../src/tools/create-trip.ts";
+import { deleteSection } from "../../src/tools/delete-section.ts";
 import { getTrip } from "../../src/tools/get-trip.ts";
+import { movePlace } from "../../src/tools/move-place.ts";
 import { removePlace } from "../../src/tools/remove-place.ts";
+import { reorderPlaces } from "../../src/tools/reorder-places.ts";
+import { reorderSections } from "../../src/tools/reorder-sections.ts";
 import { updateTripDates } from "../../src/tools/update-trip-dates.ts";
+import { updateSection } from "../../src/tools/update-section.ts";
 import { isChecklistBlock, isPlaceBlock } from "../../src/types.ts";
 import type { ChecklistBlock, NoteBlock } from "../../src/types.ts";
 
@@ -95,6 +101,104 @@ describe("Mutation tools (live round-trip)", () => {
     );
     expect(foundInDay1).toBe(true);
   }, 30_000);
+
+  it("round-trips safe custom-section lifecycle operations", async () => {
+    expect(tripKey).toBeDefined();
+    for (const heading of ["Food", "Sights"]) {
+      const result = await addSection(ctx, { trip_key: tripKey!, heading });
+      if (result.isError) throw new Error(`add_section failed: ${result.content[0]!.text}`);
+    }
+    const renamed = await updateSection(ctx, {
+      trip_key: tripKey!,
+      section: "Food",
+      heading: "Dining",
+    });
+    if (renamed.isError) throw new Error(`update_section failed: ${renamed.content[0]!.text}`);
+    const deleted = await deleteSection(ctx, { trip_key: tripKey!, section: "Dining" });
+    if (deleted.isError) throw new Error(`delete_section failed: ${deleted.content[0]!.text}`);
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    expect(trip.itinerary.sections.some((section) => section.heading === "Dining")).toBe(false);
+    expect(trip.itinerary.sections.some((section) => section.heading === "Sights")).toBe(true);
+  }, 45_000);
+
+  it("moves a place to another day with notes and times intact", async () => {
+    expect(tripKey).toBeDefined();
+    const added = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Praça do Comércio",
+      section: "Sights",
+      note: "Preserve this integration-test note",
+      start_time: "11:00",
+      end_time: "12:00",
+    });
+    if (added.isError) throw new Error(`add_place failed: ${added.content[0]!.text}`);
+
+    const moved = await movePlace(ctx, {
+      trip_key: tripKey!,
+      place_ref: "Praça do Comércio",
+      target_day: "day 2",
+    });
+    if (moved.isError) throw new Error(`move_place failed: ${moved.content[0]!.text}`);
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const day2 = trip.itinerary.sections.find(
+      (section) => section.mode === "dayPlan" && section.date === "2099-01-02",
+    );
+    const praça = day2?.blocks.find(
+      (block) => isPlaceBlock(block) && /praça do comércio/i.test(block.place.name),
+    );
+    expect(praça).toBeDefined();
+    if (praça && isPlaceBlock(praça)) {
+      expect(praça.startTime).toBe("11:00");
+      expect(praça.endTime).toBe("12:00");
+      expect(praça.text?.ops?.some(
+        (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
+      )).toBe(true);
+    }
+  }, 60_000);
+
+  it("reorders places within a list and reorders custom lists", async () => {
+    expect(tripKey).toBeDefined();
+    const food = await addSection(ctx, { trip_key: tripKey!, heading: "Food" });
+    if (food.isError) throw new Error(`add_section failed: ${food.content[0]!.text}`);
+
+    for (const placeRef of ["Castelo de São Jorge", "Praça do Comércio"]) {
+      const moved = await movePlace(ctx, {
+        trip_key: tripKey!,
+        place_ref: placeRef,
+        target_section: "Sights",
+      });
+      if (moved.isError) throw new Error(`move_place failed: ${moved.content[0]!.text}`);
+    }
+
+    const places = await reorderPlaces(ctx, {
+      trip_key: tripKey!,
+      section: "Sights",
+      place_ref: "Praça do Comércio",
+      position: 1,
+    });
+    if (places.isError) throw new Error(`reorder_places failed: ${places.content[0]!.text}`);
+    const sections = await reorderSections(ctx, {
+      trip_key: tripKey!,
+      section: "Food",
+      position: 1,
+    });
+    if (sections.isError) {
+      throw new Error(`reorder_sections failed: ${sections.content[0]!.text}`);
+    }
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const customHeadings = trip.itinerary.sections
+      .filter((section) => section.heading === "Food" || section.heading === "Sights")
+      .map((section) => section.heading);
+    expect(customHeadings).toEqual(["Food", "Sights"]);
+    const sights = trip.itinerary.sections.find((section) => section.heading === "Sights");
+    const placeNames = sights?.blocks
+      .filter(isPlaceBlock)
+      .map((block) => block.place.name) ?? [];
+    expect(placeNames[0]).toMatch(/Praça do Comércio/i);
+  }, 60_000);
 
   it("add_hotel adds a hotel with a check-in window", async () => {
     expect(tripKey).toBeDefined();
