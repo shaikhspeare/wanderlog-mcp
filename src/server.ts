@@ -106,6 +106,16 @@ import {
   movePlaceDescription,
   movePlaceInputSchema,
 } from "./tools/move-place.js";
+import {
+  reorderPlaces,
+  reorderPlacesDescription,
+  reorderPlacesInputSchema,
+} from "./tools/reorder-places.js";
+import {
+  reorderSections,
+  reorderSectionsDescription,
+  reorderSectionsInputSchema,
+} from "./tools/reorder-sections.js";
 import { addTransit, addTransitDescription, addTransitInputSchema } from "./tools/add-transit.js";
 import {
   addCarRental,
@@ -187,9 +197,10 @@ of places. A complete itinerary uses these building blocks:
      your own trips use wanderlog_get_trip.
   8. wanderlog_add_transit — ferry / bus / train legs between places (carrier, from/to, dates,
      times). wanderlog_add_car_rental — a rental car with pick-up and drop-off locations/times.
-  9. wanderlog_move_place — move an existing place between an undated list and a day without
-     losing its notes, times, images, booking data, or other metadata. Never guess when a place
-     or destination section is ambiguous — refine the reference first.
+  9. wanderlog_move_place moves an existing place between a list and day without losing
+     metadata; wanderlog_reorder_places changes its position within one container.
+     wanderlog_reorder_sections changes the relative order of custom lists. Never guess when
+     a place or section reference is ambiguous — refine the reference first.
 
 Example add_place call with all features:
   wanderlog_add_place(trip_key, place: "Sensō-ji", day: "day 1",
@@ -587,6 +598,40 @@ export function buildServer(ctx: AppContext): McpServer {
     },
     requireAuth(ctx, async (args) =>
       movePlace(ctx, args as Parameters<typeof movePlace>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_reorder_places",
+    {
+      title: "Reorder places within a list or day",
+      description: reorderPlacesDescription,
+      inputSchema: reorderPlacesInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    requireAuth(ctx, async (args) =>
+      reorderPlaces(ctx, args as Parameters<typeof reorderPlaces>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_reorder_sections",
+    {
+      title: "Reorder custom lists",
+      description: reorderSectionsDescription,
+      inputSchema: reorderSectionsInputSchema,
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: false,
+      },
+    },
+    requireAuth(ctx, async (args) =>
+      reorderSections(ctx, args as Parameters<typeof reorderSections>[1])),
   );
 
   server.registerTool(

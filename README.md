@@ -18,6 +18,7 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 ## What's New (Unreleased)
 
+- Place and custom-list ordering tools support explicit 1-based positions with safe boundary validation.
 - `wanderlog_move_place` moves an existing place between custom lists and itinerary days while preserving its complete metadata.
 - Custom-list lifecycle operations now reject duplicate or ambiguous section headings instead of silently changing the first match.
 - `wanderlog_search_hotels` — search Wanderlog's hotel aggregator across airbnb, expedia, google, and kayak. Returns ranked offers with per-vendor price comparison and faceted filter discovery so the LLM never has to memorise Wanderlog's internal enum values.
@@ -124,6 +125,8 @@ and a ryokan in Shinjuku."
 | `wanderlog_remove_place`              | Remove a place by natural-language reference                                                      |
 | `wanderlog_move_block`                | Move an existing place or reservation block within its current section                            |
 | `wanderlog_move_place`                | Move an existing place to another undated list or itinerary day, preserving its metadata          |
+| `wanderlog_reorder_places`            | Reorder places within one list or itinerary day using explicit 1-based positions                  |
+| `wanderlog_reorder_sections`          | Reorder custom lists using 1-based positions                                                      |
 | `wanderlog_update_trip_dates`         | Change a trip's date range                                                                        |
 | `wanderlog_rename_day`                | Rename a day's heading (e.g. `"Barcelona"` → `"Arrival — Feria de Abril"`)                        |
 | `wanderlog_add_section`               | Create a uniquely named custom list, optionally after another section                             |
@@ -153,6 +156,13 @@ An optional `position` is 1-based among places at the destination; omit it to ap
 last place. If a place name occurs more than once, qualify `place_ref` with an ordinal and/or
 day, for example `2nd Starbucks on day 3`. Ambiguous places, duplicate section headings,
 unknown days, and out-of-range positions return errors without submitting a mutation.
+
+### Reordering places and custom lists
+
+`wanderlog_reorder_places` changes one place's 1-based position within exactly one `section` or
+`day`. `wanderlog_reorder_sections` similarly changes one custom list's position among custom
+lists only. Both operations move the original object intact; they do not rebuild or truncate
+metadata. Position 1 selects the first place/list, and the current count selects the last.
 
 ## Prerequisites
 
