@@ -43,5 +43,14 @@ describe("custom-section MCP tool metadata", () => {
       idempotentHint: true,
       openWorldHint: false,
     });
+    expect(byName.get("wanderlog_move_place")?.annotations).toMatchObject({
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+    expect(byName.get("wanderlog_move_place")?.inputSchema.required).toEqual(
+      expect.arrayContaining(["trip_key", "place_ref"]),
+    );
   });
 });
