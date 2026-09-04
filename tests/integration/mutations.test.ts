@@ -12,6 +12,8 @@ import { getTrip } from "../../src/tools/get-trip.ts";
 import { moveBlock } from "../../src/tools/move-block.ts";
 import { movePlace } from "../../src/tools/move-place.ts";
 import { removePlace } from "../../src/tools/remove-place.ts";
+import { reorderPlaces } from "../../src/tools/reorder-places.ts";
+import { reorderSections } from "../../src/tools/reorder-sections.ts";
 import { updateTripDates } from "../../src/tools/update-trip-dates.ts";
 import { updateSection } from "../../src/tools/update-section.ts";
 import { isChecklistBlock, isPlaceBlock } from "../../src/types.ts";
@@ -245,6 +247,48 @@ describe("Mutation tools (live round-trip)", () => {
         (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
       )).toBe(true);
     }
+  }, 60_000);
+
+  it("reorders places within a list and reorders custom lists", async () => {
+    expect(tripKey).toBeDefined();
+    const food = await addSection(ctx, { trip_key: tripKey!, heading: "Food" });
+    if (food.isError) throw new Error(`add_section failed: ${food.content[0]!.text}`);
+
+    for (const placeRef of ["Castelo de São Jorge", "Praça do Comércio"]) {
+      const moved = await movePlace(ctx, {
+        trip_key: tripKey!,
+        place_ref: placeRef,
+        target_section: "Sights",
+      });
+      if (moved.isError) throw new Error(`move_place failed: ${moved.content[0]!.text}`);
+    }
+
+    const places = await reorderPlaces(ctx, {
+      trip_key: tripKey!,
+      section: "Sights",
+      place_ref: "Praça do Comércio",
+      position: 1,
+    });
+    if (places.isError) throw new Error(`reorder_places failed: ${places.content[0]!.text}`);
+    const sections = await reorderSections(ctx, {
+      trip_key: tripKey!,
+      section: "Food",
+      position: 1,
+    });
+    if (sections.isError) {
+      throw new Error(`reorder_sections failed: ${sections.content[0]!.text}`);
+    }
+
+    const trip = await ctx.rest.getTrip(tripKey!);
+    const customHeadings = trip.itinerary.sections
+      .filter((section) => section.heading === "Food" || section.heading === "Sights")
+      .map((section) => section.heading);
+    expect(customHeadings).toEqual(["Food", "Sights"]);
+    const sights = trip.itinerary.sections.find((section) => section.heading === "Sights");
+    const placeNames = sights?.blocks
+      .filter(isPlaceBlock)
+      .map((block) => block.place.name) ?? [];
+    expect(placeNames[0]).toMatch(/Praça do Comércio/i);
   }, 60_000);
 
   it("add_hotel adds a hotel with a check-in window", async () => {
