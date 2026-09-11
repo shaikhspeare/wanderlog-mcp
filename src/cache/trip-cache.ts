@@ -1,13 +1,16 @@
 import { applyOp, type Json0Op } from "../ot/apply.js";
+import { WanderlogError } from "../errors.js";
 import type { RestClient } from "../transport/rest.js";
-import type { ShareDBPool } from "../transport/sharedb.js";
+import type { ShareDBClient, ShareDBPool } from "../transport/sharedb.js";
 import type { Geo, TripPlan } from "../types.js";
 
 export type CacheEntry = {
   snapshot: TripPlan;
   version: number;
   geos: Geo[];
-  listener?: (ops: Json0Op[], version: number) => void;
+  client: ShareDBClient;
+  remoteOpListener: (ops: Json0Op[], version: number) => void;
+  closedListener: (code: number) => void;
 };
 
 /**
@@ -39,7 +42,10 @@ export class TripCache {
 
   private async ensureEntry(tripKey: string): Promise<CacheEntry> {
     const existing = this.entries.get(tripKey);
-    if (existing) return existing;
+    if (existing) {
+      if (existing.client.isSubscribed) return existing;
+      this.deleteEntry(tripKey);
+    }
 
     const pending = this.subscribing.get(tripKey);
     if (pending) return pending;
@@ -61,27 +67,53 @@ export class TripCache {
     const { geos } = await this.rest.getTripWithResources(tripKey);
 
     const client = this.pool.get(tripKey);
-    const snapshot = await client.subscribe();
+    try {
+      const snapshot = await client.subscribe();
 
-    const listener = (ops: Json0Op[], version: number) => {
-      const current = this.entries.get(tripKey);
-      if (!current) return;
-      try {
-        current.snapshot = applyOp(current.snapshot, ops);
-        current.version = version;
-      } catch {
-        // If a remote op fails to apply to our snapshot, our view is stale.
-        // Drop the entry; next get() re-subscribes from a fresh snapshot.
-        this.deleteEntry(tripKey);
+      const remoteOpListener = (ops: Json0Op[], version: number) => {
+        const current = this.entries.get(tripKey);
+        if (!current || current.client !== client) return;
+        try {
+          current.snapshot = applyOp(current.snapshot, ops);
+          current.version = version;
+        } catch {
+          this.deleteEntry(tripKey);
+        }
+      };
+      const closedListener = () => {
+        if (this.entries.get(tripKey)?.client === client) {
+          // Retiring the client suppresses background resubscription, which
+          // could otherwise refresh the client without refreshing this cache.
+          this.deleteEntry(tripKey);
+        }
+      };
+
+      client.on("remoteOp", remoteOpListener);
+      client.on("closed", closedListener);
+
+      if (!client.isSubscribed) {
+        client.off("remoteOp", remoteOpListener);
+        client.off("closed", closedListener);
+        throw new WanderlogError(
+          `Trip ${tripKey} subscription closed before it could be cached`,
+          "ws_closed",
+        );
       }
-    };
 
-    client.on("remoteOp", listener);
-
-    const entry: CacheEntry = { snapshot, version: client.version, geos, listener };
-    this.entries.set(tripKey, entry);
-
-    return entry;
+      const entry: CacheEntry = {
+        snapshot,
+        version: client.version,
+        geos,
+        client,
+        remoteOpListener,
+        closedListener,
+      };
+      this.entries.set(tripKey, entry);
+      return entry;
+    } catch (err) {
+      this.pool.evict(tripKey, client);
+      throw err;
+    }
   }
 
   /**
@@ -97,13 +129,11 @@ export class TripCache {
 
   private deleteEntry(tripKey: string): void {
     const entry = this.entries.get(tripKey);
-    if (entry) {
-      if (entry.listener) {
-        const client = this.pool.get(tripKey);
-        client.off("remoteOp", entry.listener);
-      }
-      this.entries.delete(tripKey);
-    }
+    if (!entry) return;
+    entry.client.off("remoteOp", entry.remoteOpListener);
+    entry.client.off("closed", entry.closedListener);
+    this.entries.delete(tripKey);
+    this.pool.evict(tripKey, entry.client);
   }
 
   invalidate(tripKey: string): void {

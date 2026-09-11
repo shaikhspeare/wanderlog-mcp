@@ -77,7 +77,7 @@ describe("submitOp rate-limit retry", () => {
     expect(fake.invalidateCount()).toBe(0);
   });
 
-  it("gives up after exhausting retries and invalidates the cache", async () => {
+  it("gives up after exhausting retries without invalidating the cache", async () => {
     const fake = makeFakeContext([
       rateLimitError(),
       rateLimitError(),
@@ -92,10 +92,22 @@ describe("submitOp rate-limit retry", () => {
     await assertion;
     expect(fake.submitCalls()).toBe(4);
     expect(fake.applyLocalOpCount()).toBe(0);
-    expect(fake.invalidateCount()).toBe(1);
+    expect(fake.invalidateCount()).toBe(0);
   });
 
-  it("does not retry non-rate-limit errors", async () => {
+  it.each(["empty_op", "ws_not_open", "ws_op_rejected"])(
+    "preserves the cache after confirmed non-application error %s",
+    async (code) => {
+      const fake = makeFakeContext([new WanderlogError("rejected", code)]);
+      await expect(
+        submitOp(fake.ctx, "tripA", (_entry, submit) => submit(ops)),
+      ).rejects.toMatchObject({ code });
+      expect(fake.submitCalls()).toBe(1);
+      expect(fake.invalidateCount()).toBe(0);
+    },
+  );
+
+  it("invalidates after an ambiguous non-rate-limit error", async () => {
     const fake = makeFakeContext([
       new WanderlogError("Submit op timeout", "submit_timeout"),
     ]);
@@ -168,6 +180,18 @@ describe("ShareDBClient bare {code, message} rejection frames", () => {
     const { client, pending } = clientWithPendingOp();
     deliverFrame(client, { code: 4999, message: "nope" });
     await expect(pending).rejects.toMatchObject({ code: "ws_rejected" });
+  });
+
+  it("maps a targeted op error to ws_op_rejected", async () => {
+    const { client, pending } = clientWithPendingOp();
+    deliverFrame(client, { error: "bad path", seq: 1 });
+    await expect(pending).rejects.toMatchObject({ code: "ws_op_rejected" });
+  });
+
+  it("keeps an unscoped op error ambiguous", async () => {
+    const { client, pending } = clientWithPendingOp();
+    deliverFrame(client, { error: "unknown failure" });
+    await expect(pending).rejects.toMatchObject({ code: "ws_error" });
   });
 
   it("does not treat op acks (which carry `a`) as rejections", async () => {

@@ -213,7 +213,7 @@ export class ShareDBClient extends EventEmitter {
         const pending = this.pendingOps.get(frame.seq)!;
         this.pendingOps.delete(frame.seq);
         clearTimeout(pending.timer);
-        pending.reject(new WanderlogError(errMsg, "ws_error"));
+        pending.reject(new WanderlogError(errMsg, "ws_op_rejected"));
         return;
       }
 
@@ -441,6 +441,15 @@ export class ShareDBPool {
 
   has(tripKey: string): boolean {
     return this.clients.has(tripKey);
+  }
+
+  evict(tripKey: string, expectedClient?: ShareDBClient): boolean {
+    const client = this.clients.get(tripKey);
+    if (!client || (expectedClient && client !== expectedClient)) return false;
+
+    this.clients.delete(tripKey);
+    client.close();
+    return true;
   }
 
   closeAll(): void {

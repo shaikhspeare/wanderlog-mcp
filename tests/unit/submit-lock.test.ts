@@ -7,11 +7,20 @@ import { submitOp } from "../../src/tools/shared.ts";
 
 type Snapshot = TripPlan & { counter: number };
 
-function makeEntry(): CacheEntry {
+type FakeClient = {
+  isSubscribed: boolean;
+  version: number;
+  submit(ops: Json0Op[]): Promise<void>;
+};
+
+function makeEntry(client: FakeClient): CacheEntry {
   return {
     snapshot: { counter: 0 } as Snapshot,
     version: 0,
     geos: [],
+    client: client as unknown as CacheEntry["client"],
+    remoteOpListener: () => {},
+    closedListener: () => {},
   };
 }
 
@@ -21,6 +30,7 @@ function makeFakeContext(options: {
   failApply?: boolean;
 } = {}) {
   const entries = new Map<string, CacheEntry>();
+  const clients = new Map<string, FakeClient>();
   const activeByTrip = new Map<string, number>();
   let activeTotal = 0;
   let maxActiveTotal = 0;
@@ -30,51 +40,48 @@ function makeFakeContext(options: {
   let applyLocalOpCount = 0;
   let getEntryCount = 0;
 
+  const getClient = (tripKey: string): FakeClient => {
+    let client = clients.get(tripKey);
+    if (!client) {
+      client = {
+        isSubscribed: true,
+        version: 0,
+        async submit(_ops: Json0Op[]) {
+          const thisCall = callIndex++;
+          const activeForTrip = (activeByTrip.get(tripKey) ?? 0) + 1;
+          activeByTrip.set(tripKey, activeForTrip);
+          activeTotal++;
+          maxActiveSameTrip = Math.max(maxActiveSameTrip, activeForTrip);
+          maxActiveTotal = Math.max(maxActiveTotal, activeTotal);
+          await new Promise((resolve) =>
+            setTimeout(resolve, options.submitDelay ?? 5),
+          );
+          activeByTrip.set(tripKey, activeForTrip - 1);
+          activeTotal--;
+          if (options.failOn?.(thisCall)) {
+            throw new Error(`simulated failure on call ${thisCall}`);
+          }
+          this.version++;
+        },
+      };
+      clients.set(tripKey, client);
+    }
+    return client;
+  };
+
   const getEntry = (tripKey: string): CacheEntry => {
     getEntryCount++;
     let entry = entries.get(tripKey);
     if (!entry) {
-      entry = makeEntry();
+      entry = makeEntry(getClient(tripKey));
       entries.set(tripKey, entry);
     }
     return entry;
   };
 
-  const clients = new Map<string, {
-    isSubscribed: boolean;
-    version: number;
-    submit(ops: Json0Op[]): Promise<void>;
-  }>();
   const ctx = {
     pool: {
-      get: (tripKey: string) => {
-        let client = clients.get(tripKey);
-        if (!client) {
-          client = {
-            isSubscribed: true,
-            version: 0,
-            async submit(_ops: Json0Op[]) {
-              const thisCall = callIndex++;
-              const activeForTrip = (activeByTrip.get(tripKey) ?? 0) + 1;
-              activeByTrip.set(tripKey, activeForTrip);
-              activeTotal++;
-              maxActiveSameTrip = Math.max(maxActiveSameTrip, activeForTrip);
-              maxActiveTotal = Math.max(maxActiveTotal, activeTotal);
-              await new Promise((resolve) =>
-                setTimeout(resolve, options.submitDelay ?? 5),
-              );
-              activeByTrip.set(tripKey, activeForTrip - 1);
-              activeTotal--;
-              if (options.failOn?.(thisCall)) {
-                throw new Error(`simulated failure on call ${thisCall}`);
-              }
-              this.version++;
-            },
-          };
-          clients.set(tripKey, client);
-        }
-        return client;
-      },
+      get: (tripKey: string) => getClient(tripKey),
     },
     tripCache: {
       getEntry: async (tripKey: string) => getEntry(tripKey),
@@ -88,6 +95,9 @@ function makeFakeContext(options: {
       invalidate: (tripKey: string) => {
         invalidateCount++;
         entries.delete(tripKey);
+        const client = clients.get(tripKey);
+        if (client) client.isSubscribed = false;
+        clients.delete(tripKey);
       },
     },
   } as unknown as AppContext;
@@ -147,7 +157,10 @@ describe("submitOp per-trip mutation transaction", () => {
   it("gives queued callbacks the snapshot updated by prior mutations", async () => {
     const fake = makeFakeContext({ submitDelay: 15 });
     const seen: number[] = [];
-    const mutation = (entry: CacheEntry, submit: (ops: Json0Op[]) => Promise<void>) => {
+    const mutation = (
+      entry: CacheEntry,
+      submit: (ops: Json0Op[]) => Promise<void>,
+    ) => {
       seen.push((entry.snapshot as Snapshot).counter);
       return submit([{ p: ["counter"], na: 1 }]);
     };
@@ -182,6 +195,17 @@ describe("submitOp per-trip mutation transaction", () => {
       submitOp(applyFailure.ctx, "tripA", increment),
     ).rejects.toThrow("simulated apply failure");
     expect(applyFailure.counts().invalidateCount).toBe(1);
+  });
+
+  it("invalidates when the subscription closes before submit", async () => {
+    const fake = makeFakeContext();
+    await expect(
+      submitOp(fake.ctx, "tripA", (entry, submit) => {
+        (entry.client as unknown as FakeClient).isSubscribed = false;
+        return submit([{ p: ["counter"], na: 1 }]);
+      }),
+    ).rejects.toMatchObject({ code: "not_subscribed" });
+    expect(fake.counts().invalidateCount).toBe(1);
   });
 
   it("does not invalidate on callback validation errors", async () => {
