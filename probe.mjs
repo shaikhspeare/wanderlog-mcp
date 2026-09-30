@@ -29,7 +29,6 @@ const send = (obj) => {
 
 ws.on("open", () => {
   console.log("[probe] open");
-  send({ a: "hs", id: null, protocol: 1, protocolMinor: 2 });
 });
 
 let gotHandshake = false;
@@ -46,6 +45,8 @@ ws.on("message", (raw) => {
 
   if (msg.a === "init") {
     console.log(`[recv init] session=${msg.id} type=${msg.type}`);
+    // The server drops an `hs` sent before its `init`.
+    send({ a: "hs", id: null, protocol: 1, protocolMinor: 2 });
   } else if (msg.a === "hs" && !gotHandshake) {
     gotHandshake = true;
     console.log(`[recv hs]  session=${msg.id}`);
