@@ -23,6 +23,10 @@ describe("buildNoteBlock", () => {
     expect(typeof block.id).toBe("number");
   });
 
+  it("embeds text with Quill's trailing newline", () => {
+    expect(buildNoteBlock(42, "Bring cash").text).toEqual({ ops: [{ insert: "Bring cash\n" }] });
+  });
+
   it("generates unique IDs across calls", () => {
     const ids = new Set(Array.from({ length: 50 }, () => buildNoteBlock(1).id));
     expect(ids.size).toBeGreaterThan(45);

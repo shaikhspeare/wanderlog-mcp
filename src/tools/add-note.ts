@@ -2,13 +2,7 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import {
-  buildNoteBlock,
-  findBlockById,
-  findBlockTargetSection,
-  requireUserId,
-  submitOp,
-} from "./shared.js";
+import { buildNoteBlock, findBlockTargetSection, requireUserId, submitOp } from "./shared.js";
 
 export const addNoteInputSchema = z.object({
   trip_key: z
@@ -60,7 +54,9 @@ export async function addNote(
     const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
       const target = findBlockTargetSection(trip, args, "note");
-      const block = buildNoteBlock(userId);
+      // One insert with the text inline: an insert-then-edit pair leaves a
+      // blank note behind whenever the second submit fails.
+      const block = buildNoteBlock(userId, args.text);
       const insertOps: Json0Op[] = [
         {
           p: ["itinerary", "sections", target.index, "blocks", target.section.blocks.length],
@@ -68,26 +64,6 @@ export async function addNote(
         },
       ];
       await submit(insertOps);
-
-      const inserted = findBlockById(entry.snapshot, block.id as number);
-      if (!inserted || inserted.block.type !== "note") {
-        throw new WanderlogError("Inserted note could not be found", "stale_target");
-      }
-      const textOps: Json0Op[] = [
-        {
-          p: [
-            "itinerary",
-            "sections",
-            inserted.sectionIndex,
-            "blocks",
-            inserted.blockIndex,
-            "text",
-          ],
-          t: "rich-text",
-          o: [{ insert: `${args.text}\n` }],
-        },
-      ];
-      await submit(textOps);
       return { targetLabel: target.label, tripTitle: entry.snapshot.title };
     });
 

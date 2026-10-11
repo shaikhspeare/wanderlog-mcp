@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { AppContext } from "../../src/context.ts";
 import { applyOp, type Json0Op } from "../../src/ot/apply.ts";
+import { WanderlogError } from "../../src/errors.ts";
 import { addNote, addNoteInputSchema } from "../../src/tools/add-note.ts";
 import type { TripPlan } from "../../src/types.ts";
 import { checklistTrip } from "../fixtures/checklist-trip.ts";
@@ -89,14 +90,34 @@ describe("addNote section targeting", () => {
 
     expect(result.isError).toBeUndefined();
     expect(result.content[0]!.text).toContain('section "Notes"');
-    expect(submittedOps).toHaveLength(2);
-    expect(submittedOps[0]![0]!.p).toEqual(["itinerary", "sections", 0, "blocks", 0]);
-    expect((submittedOps[0]![0] as { li: { type: string } }).li.type).toBe("note");
-    expect(submittedOps[1]![0]).toMatchObject({
-      p: ["itinerary", "sections", 0, "blocks", 0, "text"],
-      t: "rich-text",
-      o: [{ insert: "Keep passport copies here\n" }],
+    expect(submittedOps).toHaveLength(1);
+    expect(submittedOps[0]).toHaveLength(1);
+    expect(submittedOps[0]![0]).toMatchObject({
+      p: ["itinerary", "sections", 0, "blocks", 0],
+      li: { type: "note", text: { ops: [{ insert: "Keep passport copies here\n" }] } },
     });
+  });
+
+  it("cannot leave a blank note when a follow-up submit would fail", async () => {
+    const { ctx, submittedOps } = makeFakeContext(checklistTrip);
+    const client = (
+      ctx.pool as unknown as { get: () => { submit: (ops: Json0Op[]) => Promise<void> } }
+    ).get();
+    const submitOnce = client.submit;
+    (ctx.pool as unknown as { get: () => unknown }).get = () => ({
+      ...client,
+      async submit(ops: Json0Op[]) {
+        if (submittedOps.length > 0) throw new WanderlogError("WebSocket closed", "ws_closed");
+        await submitOnce(ops);
+      },
+    });
+
+    const result = await addNote(ctx, { trip_key: "T", text: "Bring cash", day: "day 1" });
+
+    expect(result.isError).toBeUndefined();
+    const entry = await ctx.tripCache.getEntry("T");
+    const note = entry.snapshot.itinerary.sections[2]!.blocks.at(-1)!;
+    expect(note).toMatchObject({ type: "note", text: { ops: [{ insert: "Bring cash\n" }] } });
   });
 
   it("adds a note to Places to visit when explicitly targeted", async () => {
