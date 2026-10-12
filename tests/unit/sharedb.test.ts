@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AddressInfo } from "node:net";
+import { WebSocketServer, type WebSocket as WsSocket } from "ws";
 import { ShareDBClient, ShareDBPool } from "../../src/transport/sharedb.ts";
 import { WanderlogAuthError, WanderlogError } from "../../src/errors.ts";
 
@@ -141,5 +143,175 @@ describe("ShareDBPool eviction", () => {
     expect(closeSpy).not.toHaveBeenCalled();
     expect(pool.get("tripA")).toBe(replacement);
     pool.closeAll();
+  });
+});
+
+describe("ShareDBClient connect failures against a local server", () => {
+  let server: WebSocketServer;
+  let config: any;
+
+  beforeEach(async () => {
+    server = new WebSocketServer({ port: 0, host: "127.0.0.1" });
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const { port } = server.address() as AddressInfo;
+    config = {
+      cookieHeader: "connect.sid=test",
+      wsBaseUrl: `ws://127.0.0.1:${port}`,
+      baseUrl: "https://test",
+      userAgent: "test",
+    };
+  });
+
+  afterEach(async () => {
+    for (const socket of server.clients) socket.terminate();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  });
+
+  function sendInit(socket: WsSocket): void {
+    socket.send(
+      JSON.stringify({ a: "init", id: "session-1", protocol: 1, protocolMinor: 2, type: "json0" }),
+    );
+  }
+
+  function onHandshake(reply: (socket: WsSocket) => void): void {
+    server.on("connection", (socket) => {
+      sendInit(socket);
+      socket.on("message", (raw) => {
+        if (JSON.parse(raw.toString()).a === "hs") reply(socket);
+      });
+    });
+  }
+
+  it("rejects instead of hanging when the server closes before the handshake", async () => {
+    server.on("connection", (socket) => socket.close(4000, "go away"));
+    const client = new ShareDBClient(config, "tripA");
+
+    await expect(client.connect()).rejects.toMatchObject({ code: "ws_closed" });
+    expect((client as any).reconnectTimer).toBeUndefined();
+    client.close();
+  });
+
+  it("does not leave a stuck connect promise behind after a pre-handshake close", async () => {
+    let attempts = 0;
+    server.on("connection", (socket) => {
+      attempts += 1;
+      if (attempts === 1) {
+        socket.close(4000, "go away");
+        return;
+      }
+      sendInit(socket);
+      socket.on("message", (raw) => {
+        if (JSON.parse(raw.toString()).a === "hs") {
+          socket.send(JSON.stringify({ a: "hs", id: "session-2", protocol: 1, protocolMinor: 2 }));
+        }
+      });
+    });
+    const client = new ShareDBClient(config, "tripA");
+
+    await expect(client.connect()).rejects.toMatchObject({ code: "ws_closed" });
+    await expect(client.connect()).resolves.toBeUndefined();
+    client.close();
+  });
+
+  it("surfaces a bare rejection frame sent in place of the handshake ack", async () => {
+    onHandshake((socket) =>
+      socket.send(JSON.stringify({ code: 4001, message: "Too many requests" })),
+    );
+    const client = new ShareDBClient(config, "tripA");
+
+    await expect(client.connect()).rejects.toMatchObject({
+      code: "rate_limited",
+      message: "Wanderlog rejected the request (4001): Too many requests",
+    });
+    expect((client as any).reconnectTimer).toBeUndefined();
+    client.close();
+  });
+
+  it("surfaces an error frame sent in place of the handshake ack", async () => {
+    onHandshake((socket) =>
+      socket.send(JSON.stringify({ a: "hs", error: { message: "Handshake rejected" } })),
+    );
+    const client = new ShareDBClient(config, "tripA");
+
+    await expect(client.connect()).rejects.toMatchObject({
+      code: "ws_error",
+      message: "Handshake rejected",
+    });
+    client.close();
+  });
+
+  it("still reconnects when an established socket drops", async () => {
+    onHandshake((socket) =>
+      socket.send(JSON.stringify({ a: "hs", id: "session-1", protocol: 1, protocolMinor: 2 })),
+    );
+    const client = new ShareDBClient(config, "tripA");
+    await client.connect();
+
+    const closed = new Promise((resolve) => client.once("closed", resolve));
+    for (const socket of server.clients) socket.terminate();
+    await closed;
+
+    expect((client as any).reconnectTimer).toBeDefined();
+    client.close();
+  });
+});
+
+describe("ShareDBClient subscribe bookkeeping", () => {
+  const config = {
+    cookieHeader: "connect.sid=test",
+    wsBaseUrl: "wss://test",
+    baseUrl: "https://test",
+    userAgent: "test",
+  } as any;
+  const subscribeAck = (snapshot: unknown) => ({
+    a: "s",
+    c: "TripPlans",
+    d: "tripA",
+    data: { v: 1, data: snapshot },
+  });
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it("does not let an earlier subscribe's timeout reject a later subscribe", async () => {
+    const client = new ShareDBClient(config, "tripA");
+    vi.spyOn(client, "connect").mockResolvedValue(undefined);
+    vi.spyOn(client as any, "send").mockImplementation(() => {});
+
+    const first = client.subscribe();
+    await vi.advanceTimersByTimeAsync(5_000);
+    (client as any).failAllPending(new WanderlogError("WebSocket closed", "ws_closed"));
+    await expect(first).rejects.toMatchObject({ code: "ws_closed" });
+
+    const second = client.subscribe();
+    // Past the first request's deadline, well within the second's.
+    await vi.advanceTimersByTimeAsync(6_000);
+    const snapshot = { title: "Trip" };
+    (client as any).handleFrame(
+      subscribeAck(snapshot),
+      undefined,
+      () => {},
+      () => {},
+    );
+
+    await expect(second).resolves.toBe(snapshot);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("rejects immediately when the subscribe frame cannot be sent", async () => {
+    const client = new ShareDBClient(config, "tripA");
+    vi.spyOn(client, "connect").mockResolvedValue(undefined);
+
+    await expect(client.subscribe()).rejects.toMatchObject({ code: "ws_not_open" });
+    expect((client as any).subscribePending).toBeUndefined();
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
