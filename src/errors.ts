@@ -100,3 +100,15 @@ export class WanderlogNetworkError extends WanderlogError {
     this.name = "WanderlogNetworkError";
   }
 }
+
+/**
+ * Status for a failed login in the HTTP transport. A Wanderlog 5xx or an
+ * unreachable wanderlog.com is a 502, so clients can tell "try again in a
+ * moment" from "refresh the cookie"; everything else stays a 403.
+ */
+export function loginFailureStatus(err: unknown): 403 | 502 {
+  const wanderlogDown =
+    err instanceof WanderlogNetworkError ||
+    (err instanceof WanderlogError && err.code === "upstream_error");
+  return wanderlogDown ? 502 : 403;
+}

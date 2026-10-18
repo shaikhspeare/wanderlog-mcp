@@ -5,6 +5,7 @@ import {
   WanderlogNetworkError,
   WanderlogNotFoundError,
   WanderlogValidationError,
+  loginFailureStatus,
 } from "../../src/errors.ts";
 import { resolveDay } from "../../src/resolvers/day.ts";
 import { queenstownTrip } from "../fixtures/queenstown-trip.ts";
@@ -109,5 +110,38 @@ describe("day resolver — out-of-range errors include follow-up", () => {
       expect(msg).toContain(queenstownTrip.key);
       expect(msg).toContain("Next steps:");
     }
+  });
+});
+
+describe("loginFailureStatus", () => {
+  it("is 502 when Wanderlog errors or can't be reached", () => {
+    const serverError = new WanderlogError(
+      "Wanderlog server error 502 on /api/user",
+      "upstream_error",
+      "This is a Wanderlog server issue; try again in a moment.",
+    );
+    expect(loginFailureStatus(serverError)).toBe(502);
+    expect(
+      loginFailureStatus(
+        new WanderlogNetworkError("Request to GET /api/user failed: fetch failed"),
+      ),
+    ).toBe(502);
+  });
+
+  it("stays 403 for a rejected, missing or malformed session", () => {
+    expect(loginFailureStatus(new WanderlogAuthError())).toBe(403);
+    expect(
+      loginFailureStatus(
+        new WanderlogAuthError("No user returned for current session — cookie may be invalid"),
+      ),
+    ).toBe(403);
+    expect(
+      loginFailureStatus(
+        new WanderlogValidationError("WANDERLOG_COOKIE does not look like a connect.sid cookie"),
+      ),
+    ).toBe(403);
+    expect(
+      loginFailureStatus(new WanderlogError("Failed to parse JSON from /api/user", "parse_error")),
+    ).toBe(403);
   });
 });

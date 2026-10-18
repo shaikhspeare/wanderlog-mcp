@@ -7,7 +7,7 @@ import { RestClient } from "./transport/rest.js";
 import { ShareDBPool } from "./transport/sharedb.js";
 import { TripCache } from "./cache/trip-cache.js";
 import type { AppContext } from "./context.js";
-import { WanderlogError } from "./errors.js";
+import { WanderlogError, loginFailureStatus } from "./errors.js";
 import { buildServer } from "./server.js";
 
 // --- per-user context cache keyed by cookie hash ---
@@ -127,10 +127,12 @@ async function main() {
       ctx = await getOrCreateContext(cookie);
     } catch (err) {
       const msg = err instanceof WanderlogError ? err.toUserMessage() : (err as Error).message;
-      console.error(`[wanderdog] auth failed: ${msg}`);
-      res.status(403).json({
+      const status = loginFailureStatus(err);
+      const label = status === 403 ? "Authentication failed" : "Wanderlog unavailable";
+      console.error(`[wanderdog] ${status === 403 ? "auth failed" : "login check failed"}: ${msg}`);
+      res.status(status).json({
         jsonrpc: "2.0",
-        error: { code: -32000, message: `Authentication failed: ${msg}` },
+        error: { code: -32000, message: `${label}: ${msg}` },
         id: null,
       });
       return;
