@@ -99,6 +99,8 @@ and a ryokan in Shinjuku."
 | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `wanderlog_list_trips`                | List trips in your account                                                                        |
 | `wanderlog_get_trip`                  | View a full itinerary, or filter to a single day                                                  |
+| `wanderlog_optimize_day`              | Suggest a proximity-based order for one day without modifying the trip                            |
+| `wanderlog_check_conflicts`           | Check timing overlaps, crowded days, and approximate transfer risks                               |
 | `wanderlog_get_trip_url`              | Get a shareable wanderlog.com link                                                                |
 | `wanderlog_get_trip_forwarding_email` | Get a trip's `trip+<id>@wanderlog.com` import address                                             |
 | `wanderlog_search_places`             | Find real-world places near a trip's destination                                                  |
@@ -130,6 +132,15 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_journal`               | Add a journal stop: a place + date/time + text entry                                              |
 | `wanderlog_edit_journal`              | Edit a journal stop's title, text, or date/time (or the journal summary)                          |
 | `wanderlog_remove_journal`            | Remove a journal stop by title (with an optional date filter)                                     |
+
+### Read-only itinerary planning
+
+Two optional tools analyze an existing itinerary without submitting any changes to Wanderlog:
+
+- `wanderlog_optimize_day` accepts a `trip_key` and a day reference (for example `2026-11-27`). It suggests a nearest-neighbor geographic order while keeping timed visits, recognizable bookings, and places lacking coordinates at their current positions. The tool reports straight-line distance estimates before and after the proposed order.
+- `wanderlog_check_conflicts` accepts a `trip_key` and an optional day. It checks for overlapping scheduled visits, invalid time ranges, crowded days, and transfers that appear too tight under a rough walking-distance heuristic. Without a day filter, it analyzes the full itinerary.
+
+These are **advisory, read-only tools**. Straight-line distance is not an actual transit route, and neither tool validates opening hours, attraction tickets, or live traffic. Review the suggestions before making itinerary edits.
 
 ### Managing custom lists
 
