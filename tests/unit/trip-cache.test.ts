@@ -265,3 +265,43 @@ describe("TripCache subscription lifecycle", () => {
     expect(pool.has("tripB")).toBe(false);
   });
 });
+
+describe("TripCache.read", () => {
+  function makeSlowCache(subscribe: () => Promise<unknown>) {
+    const restTrip = { title: "rest snapshot", itinerary: { sections: [] } };
+    const rest = {
+      getTripWithResources: async () => ({ geos: [] }),
+      getTrip: async () => restTrip,
+    } as unknown as RestClient;
+    const pool = new FakeShareDBPool();
+    pool.get("tripA").subscribe = subscribe as never;
+    return { cache: new TripCache(rest, pool as unknown as ShareDBPool), restTrip };
+  }
+
+  it("serves a warm entry from the cache without touching REST", async () => {
+    const { cache, getTripCalls } = makeCache();
+    await cache.get("tripA");
+    const before = getTripCalls();
+
+    const trip = await cache.read("tripA");
+
+    expect(trip.title).toBe("tripA snapshot 1");
+    expect(getTripCalls()).toBe(before);
+  });
+
+  it("falls back to REST when the cold subscribe outlasts the timeout", async () => {
+    const { cache, restTrip } = makeSlowCache(() => new Promise(() => {}));
+
+    const trip = await cache.read("tripA", 10);
+
+    expect(trip).toBe(restTrip);
+  });
+
+  it("propagates a subscribe failure that beats the timeout", async () => {
+    const { cache } = makeSlowCache(async () => {
+      throw new Error("auth expired");
+    });
+
+    await expect(cache.read("tripA", 1000)).rejects.toThrow("auth expired");
+  });
+});

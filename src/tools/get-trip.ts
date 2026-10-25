@@ -45,7 +45,7 @@ export async function getTrip(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const trip = await ctx.tripCache.get(args.trip_key);
+    const trip = await ctx.tripCache.read(args.trip_key);
     const daySection = args.day ? resolveDay(trip, args.day) : undefined;
     const text = formatTrip(trip, args.response_format ?? "concise", daySection);
     return { content: [{ type: "text", text }] };

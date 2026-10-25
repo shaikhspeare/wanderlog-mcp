@@ -4,6 +4,9 @@ import type { RestClient } from "../transport/rest.js";
 import type { ShareDBClient, ShareDBPool } from "../transport/sharedb.js";
 import type { Geo, TripPlan } from "../types.js";
 
+const COLD_READ_TIMEOUT_MS = 5_000;
+const TIMED_OUT = Symbol("timed out");
+
 export type CacheEntry = {
   snapshot: TripPlan;
   version: number;
@@ -34,6 +37,36 @@ export class TripCache {
   async get(tripKey: string): Promise<TripPlan> {
     const entry = await this.ensureEntry(tripKey);
     return entry.snapshot;
+  }
+
+  /**
+   * Read-only access that cannot hang on a slow cold subscribe. A warm entry is
+   * served from the cache, which `submitOp` keeps current, so reads see our own
+   * writes. A cold trip waits up to `timeoutMs` for the subscribe, then falls
+   * back to a REST read while the subscribe keeps running to warm the cache.
+   */
+  async read(tripKey: string, timeoutMs = COLD_READ_TIMEOUT_MS): Promise<TripPlan> {
+    const warm = this.entries.get(tripKey);
+    if (warm?.client.isSubscribed) return warm.snapshot;
+
+    const subscribe = this.ensureEntry(tripKey);
+    let timer: NodeJS.Timeout | undefined;
+    const timedOut = new Promise<typeof TIMED_OUT>((resolve) => {
+      timer = setTimeout(() => resolve(TIMED_OUT), timeoutMs);
+    });
+    try {
+      const winner = await Promise.race([subscribe, timedOut]);
+      if (winner !== TIMED_OUT) return winner.snapshot;
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Auth and not-found errors would have rejected `subscribe` before the
+    // timeout, so a late rejection here is a transport problem worth a log line.
+    subscribe.catch((err: Error) => {
+      console.error(`[wanderdog] background subscribe for a trip failed: ${err.message}`);
+    });
+    return this.rest.getTrip(tripKey);
   }
 
   async getEntry(tripKey: string): Promise<CacheEntry> {
