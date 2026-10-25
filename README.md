@@ -99,6 +99,12 @@ and a ryokan in Shinjuku."
 | ------------------------------------- | ------------------------------------------------------------------------------------------------- |
 | `wanderlog_list_trips`                | List trips in your account                                                                        |
 | `wanderlog_get_trip`                  | View a full itinerary, or filter to a single day                                                  |
+| `wanderlog_move_place_to_day`         | Preview a metadata-preserving move to another day or custom list                                  |
+| `wanderlog_preview_changes`           | Validate batch edits and create an expiring approval token                                        |
+| `wanderlog_bulk_update`               | Apply an approved preview after checking changes and creating a backup                            |
+| `wanderlog_protect_reservations`      | Manage ID-based advanced-tool protection rules for existing places                                |
+| `wanderlog_backup_trip`               | Create or list encrypted local itinerary section backups                                          |
+| `wanderlog_restore_backup`            | Preview and explicitly restore sections from an encrypted backup                                  |
 | `wanderlog_get_trip_url`              | Get a shareable wanderlog.com link                                                                |
 | `wanderlog_get_trip_forwarding_email` | Get a trip's `trip+<id>@wanderlog.com` import address                                             |
 | `wanderlog_search_places`             | Find real-world places near a trip's destination                                                  |
@@ -130,6 +136,53 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_journal`               | Add a journal stop: a place + date/time + text entry                                              |
 | `wanderlog_edit_journal`              | Edit a journal stop's title, text, or date/time (or the journal summary)                          |
 | `wanderlog_remove_journal`            | Remove a journal stop by title (with an optional date filter)                                     |
+
+### Advanced itinerary safety and encrypted backups
+
+These six optional tools provide a preview-and-approve workflow for cross-day moves and
+batch edits, together with encrypted backups and a guarded restore operation.
+
+**Setup:** Generate a stable 32-byte encryption key with `openssl rand -hex 32`
+and set `WANDERLOG_MCP_STATE_KEY`. Optionally configure `WANDERLOG_MCP_STATE_DIR`,
+which defaults to `~/.wanderlog-mcp/state`. This directory must be writable and
+**persistent** across restarts. The state is scoped to the authenticated Wanderlog
+user and trip, written with restrictive file permissions, and encrypted using
+AES-256-GCM. Back up the key securely: losing or rotating it makes stored backups
+unrecoverable. The backup functionality does not upload data to a remote service.
+
+Example flow:
+
+1. Call `wanderlog_move_place_to_day` (place, `to_day`, optional `from_day` and
+   `position`) to receive a preview, **not** to make the move.
+2. Inspect the returned actions and call `wanderlog_bulk_update` with `preview_id`
+   and `confirm_apply: true` only after the user approves.
+3. For multiple actions, use `wanderlog_preview_changes` instead. Supported
+   action types: `move`, `reorder`, and `set_time` (24-hour HH:mm).
+4. Use `wanderlog_protect_reservations` with `action: "protect"` to lock named
+   places by their stable block IDs. Embedded hotel bookings with confirmation
+   metadata are protected automatically. **These rules apply only to these new
+   advanced tools**, not to the repository's existing mutation tools.
+5. Use `wanderlog_backup_trip` to create/list an encrypted **full-trip
+   snapshot**, including itinerary sections, trip metadata, budget, and journal.
+   The tool reads the encrypted file back and validates its checksum before
+   reporting a successful backup. `wanderlog_restore_backup` first returns a
+   preview token; its `apply` action additionally requires
+   `confirm_destructive: true`, rejects protected bookings, and verifies the
+   result with a fresh Wanderlog read. **Restore is limited to itinerary
+   sections**. Budgets, journal entries, dates, and other fields are archived
+   for safekeeping but cannot yet be automatically restored.
+
+Previews expire after 30 minutes (restore previews after 20 minutes).
+Before applying changes, the tools compare a hash of the current itinerary and
+protection rules with the previewed version. They also save an encrypted safety
+backup. On an ambiguous write error, **do not retry immediately**: inspect the
+current trip and restore from a known good backup only after reviewing the
+restore preview.
+
+**Deployment limitation:** Backup creation is not a substitute for off-host disaster recovery. An encrypted backup exists only in the configured local directory, with no export/download feature yet. Keep a separate secure copy of the storage directory and key. Local state is **not shared** between separate server
+instances and does not survive ephemeral container storage. Configure a persistent
+volume, and run advanced edits against a single instance or use an external state
+backend in a future change.
 
 ### Managing custom lists
 

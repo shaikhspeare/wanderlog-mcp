@@ -2,6 +2,27 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { AppContext } from "./context.js";
 import { VERSION } from "./version.js";
 import {
+  previewChanges,
+  previewChangesDescription,
+  previewChangesInputSchema,
+  bulkUpdate,
+  bulkUpdateDescription,
+  bulkUpdateInputSchema,
+  movePlaceToDay,
+  movePlaceToDayDescription,
+  movePlaceToDayInputSchema,
+  protectReservations,
+  protectReservationsDescription,
+  protectReservationsInputSchema,
+} from "./tools/advanced-edits.js";
+import { backupTrip, backupTripDescription, backupTripInputSchema } from "./tools/backup-trip.js";
+import {
+  restoreBackup,
+  restoreBackupDescription,
+  restoreBackupInputSchema,
+} from "./tools/restore-backup.js";
+
+import {
   addChecklist,
   addChecklistDescription,
   addChecklistInputSchema,
@@ -223,6 +244,80 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: getTripInputSchema,
     },
     requireAuth(ctx, async (args) => getTrip(ctx, args as Parameters<typeof getTrip>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_move_place_to_day",
+    {
+      title: "Preview a lossless cross-day place move",
+      description: movePlaceToDayDescription,
+      inputSchema: movePlaceToDayInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    requireAuth(ctx, async (args) =>
+      movePlaceToDay(ctx, args as Parameters<typeof movePlaceToDay>[1]),
+    ),
+  );
+
+  server.registerTool(
+    "wanderlog_preview_changes",
+    {
+      title: "Preview batch itinerary edits",
+      description: previewChangesDescription,
+      inputSchema: previewChangesInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    requireAuth(ctx, async (args) =>
+      previewChanges(ctx, args as Parameters<typeof previewChanges>[1]),
+    ),
+  );
+
+  server.registerTool(
+    "wanderlog_bulk_update",
+    {
+      title: "Apply an approved itinerary change preview",
+      description: bulkUpdateDescription,
+      inputSchema: bulkUpdateInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    requireAuth(ctx, async (args) => bulkUpdate(ctx, args as Parameters<typeof bulkUpdate>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_protect_reservations",
+    {
+      title: "Manage advanced itinerary protection rules",
+      description: protectReservationsDescription,
+      inputSchema: protectReservationsInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    requireAuth(ctx, async (args) =>
+      protectReservations(ctx, args as Parameters<typeof protectReservations>[1]),
+    ),
+  );
+
+  server.registerTool(
+    "wanderlog_backup_trip",
+    {
+      title: "Create or list encrypted itinerary backups",
+      description: backupTripDescription,
+      inputSchema: backupTripInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    requireAuth(ctx, async (args) => backupTrip(ctx, args as Parameters<typeof backupTrip>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_restore_backup",
+    {
+      title: "Preview or confirm a backup restore",
+      description: restoreBackupDescription,
+      inputSchema: restoreBackupInputSchema,
+      annotations: { readOnlyHint: false, destructiveHint: true },
+    },
+    requireAuth(ctx, async (args) =>
+      restoreBackup(ctx, args as Parameters<typeof restoreBackup>[1]),
+    ),
   );
 
   server.registerTool(
