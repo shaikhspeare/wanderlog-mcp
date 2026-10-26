@@ -3,7 +3,13 @@ import type { AppContext } from "../context.js";
 import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolvePlaceRef } from "../resolvers/place-ref.js";
-import { isPlaceBlock } from "../types.js";
+import { type Expense, isPlaceBlock } from "../types.js";
+import {
+  buildSplitWith,
+  formatPayerSplit,
+  isSharedTrip,
+  resolveMember,
+} from "./expenses-shared.js";
 import { generateBlockId, requireUserId, submitOp } from "./shared.js";
 
 export const addExpenseInputSchema = {
@@ -48,6 +54,19 @@ export const addExpenseInputSchema = {
     .regex(/^\d{4}-\d{2}-\d{2}$/, "must be YYYY-MM-DD")
     .optional()
     .describe("Date of the expense, YYYY-MM-DD. Defaults to today if omitted."),
+  paid_by: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Who paid: a trip member's first name, full name, or username. Defaults to the logged-in user.",
+    ),
+  split_with: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      "Trip members to split the cost evenly between (first names, full names, or usernames). Omit to leave the expense unsplit.",
+    ),
 };
 
 export const addExpenseDescription = `
@@ -68,6 +87,8 @@ type Args = {
   description: string;
   place?: string;
   date?: string;
+  paid_by?: string;
+  split_with?: string[];
 };
 
 export async function addExpense(
@@ -75,10 +96,12 @@ export async function addExpense(
   args: Args,
 ): Promise<{ content: Array<{ type: "text"; text: string }>; isError?: boolean }> {
   try {
-    const userId = requireUserId(ctx);
+    const loggedInUserId = requireUserId(ctx);
     const expenseDate = args.date ?? new Date().toISOString().slice(0, 10);
     const result = await submitOp(ctx, args.trip_key, async (entry, submit) => {
       const trip = entry.snapshot;
+      const userId = args.paid_by ? resolveMember(trip, args.paid_by) : loggedInUserId;
+      const splitWith = buildSplitWith(trip, args.split_with ?? []);
       let blockId: number | null = null;
       let associatedDate: string | null = null;
       if (args.place) {
@@ -117,7 +140,7 @@ export async function addExpense(
         blockId = resolved.match.block.id;
         associatedDate = resolved.match.section.date;
       }
-      const expense: Record<string, unknown> = {
+      const expense: Expense = {
         id: generateBlockId(),
         amount: {
           amount: args.amount,
@@ -128,7 +151,7 @@ export async function addExpense(
         date: expenseDate,
         paidByUserId: userId,
         paidByUser: { type: "registered", id: userId },
-        splitWith: { type: "individuals", users: [] },
+        splitWith,
         blockId,
         associatedDate: associatedDate ?? expenseDate,
       };
@@ -142,13 +165,14 @@ export async function addExpense(
         },
       ];
       await submit(ops);
-      return { tripTitle: trip.title };
+      const who = isSharedTrip(trip) ? ` (${formatPayerSplit(expense, trip)})` : "";
+      return { tripTitle: trip.title, who };
     });
     if ("response" in result && result.response) return result.response;
 
     const currencyLabel = args.currency.toUpperCase();
     const linkLabel = args.place ? ` (linked to ${args.place})` : "";
-    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}"${linkLabel} in "${result.tripTitle}".`;
+    const text = `Added expense: ${currencyLabel} ${args.amount} for "${args.description}"${linkLabel} in "${result.tripTitle}"${result.who}.`;
     return { content: [{ type: "text", text }] };
   } catch (err) {
     const msg =

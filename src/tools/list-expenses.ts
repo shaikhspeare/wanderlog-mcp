@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError } from "../errors.js";
-import { findExpenseMatches, formatExpense } from "./expenses-shared.js";
+import { findExpenseMatches, formatExpense, formatPayments } from "./expenses-shared.js";
 
 export const listExpensesInputSchema = {
   trip_key: z.string().min(1).describe("The trip whose expenses to list."),
@@ -31,9 +31,11 @@ export const listExpensesInputSchema = {
 export const listExpensesDescription = `
 Lists budget expenses on a Wanderlog trip, newest entries last.
 
-Each line shows the amount, currency, description, category, and date. Use the optional
-description / date / amount / currency filters to narrow the list — handy for finding the exact
-expense to pass to wanderlog_remove_expense or wanderlog_edit_expense when several are similar.
+Each line shows the amount, currency, description, category, and date; on a trip shared with
+others it also shows who paid and who it's split between. An unfiltered list ends with the
+settle-up payments between trip members. Use the optional description / date / amount / currency
+filters to narrow the list — handy for finding the exact expense to pass to
+wanderlog_remove_expense or wanderlog_edit_expense when several are similar.
 
 Returns a friendly message when the trip has no matching expenses.
 `.trim();
@@ -59,18 +61,27 @@ export async function listExpenses(
       currency: args.currency,
     });
 
+    const filtered = args.description || args.date || args.amount !== undefined || args.currency;
     if (matches.length === 0) {
-      const filtered = args.description || args.date || args.amount !== undefined || args.currency;
       const text = filtered
         ? `No expenses match those filters in "${trip.title}".`
         : `No expenses logged in "${trip.title}" yet. Add one with wanderlog_add_expense.`;
       return { content: [{ type: "text", text }] };
     }
 
-    const lines = matches.map((m, i) => `  ${i + 1}. ${formatExpense(m.expense)}`).join("\n");
+    const lines = matches.map((m, i) => `  ${i + 1}. ${formatExpense(m.expense, trip)}`).join("\n");
     const noun = matches.length === 1 ? "expense" : "expenses";
+    const payments = filtered ? [] : formatPayments(trip);
+    const paymentsText = payments.length
+      ? `\n\nSettle-up payments:\n${payments.map((p) => `  - ${p}`).join("\n")}`
+      : "";
     return {
-      content: [{ type: "text", text: `${matches.length} ${noun} in "${trip.title}":\n${lines}` }],
+      content: [
+        {
+          type: "text",
+          text: `${matches.length} ${noun} in "${trip.title}":\n${lines}${paymentsText}`,
+        },
+      ],
     };
   } catch (err) {
     const msg =
