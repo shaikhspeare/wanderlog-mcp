@@ -2,8 +2,15 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogNotFoundError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
-import type { Expense } from "../types.js";
-import { findExpenseMatches, formatCandidateList, formatExpense } from "./expenses-shared.js";
+import type { Expense, TripPlan } from "../types.js";
+import {
+  buildSplitWith,
+  findExpenseMatches,
+  formatCandidateList,
+  formatExpense,
+  resolveMember,
+  tripMembers,
+} from "./expenses-shared.js";
 import { submitOp } from "./shared.js";
 
 export const editExpenseInputSchema = {
@@ -70,11 +77,25 @@ export const editExpenseInputSchema = {
     .describe(
       "New date for the expense, YYYY-MM-DD. Updates both the expense date and the budget day it's grouped under (Wanderlog's budget list displays this date). Omit to leave unchanged.",
     ),
+  new_paid_by: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "New payer: a trip member's first name, full name, or username. Omit to leave unchanged.",
+    ),
+  new_split_with: z
+    .array(z.string().min(1))
+    .optional()
+    .describe(
+      "Trip members to split the cost evenly between (first names, full names, or usernames), replacing the current split. Pass [] to stop splitting. Omit to leave unchanged.",
+    ),
 };
 
 export const editExpenseDescription = `
 Edits an existing budget expense on a Wanderlog trip. Find the expense by a case-insensitive
-substring of its description, then change any of: description, amount, currency, category, date.
+substring of its description, then change any of: description, amount, currency, category, date,
+payer, split.
 
 If none match, an error is returned. If several match, a numbered list is returned and nothing is
 changed — narrow with a more specific description or a date / amount / currency filter. Only the
@@ -92,6 +113,8 @@ type Args = {
   new_currency?: string;
   new_category?: string;
   new_date?: string;
+  new_paid_by?: string;
+  new_split_with?: string[];
 };
 
 /** od+oi replacement for an existing key; oi-only insert when the key is absent. */
@@ -105,6 +128,7 @@ function buildEditOps(
   expense: Expense,
   index: number,
   args: Args,
+  trip: TripPlan,
 ): { ops: Json0Op[]; changes: string[] } {
   const base = ["itinerary", "budget", "expenses", index];
   const ops: Json0Op[] = [];
@@ -151,6 +175,26 @@ function buildEditOps(
     }
   }
 
+  if (args.new_paid_by !== undefined) {
+    const id = resolveMember(trip, args.new_paid_by);
+    if (id !== expense.paidByUserId) {
+      ops.push(replaceField([...base, "paidByUserId"], expense.paidByUserId, id));
+      ops.push(
+        replaceField([...base, "paidByUser"], expense.paidByUser, { type: "registered", id }),
+      );
+      changes.push(`paid by → ${tripMembers(trip).get(id)}`);
+    }
+  }
+
+  if (args.new_split_with !== undefined) {
+    const splitWith = buildSplitWith(trip, args.new_split_with);
+    if (JSON.stringify(splitWith) !== JSON.stringify(expense.splitWith)) {
+      ops.push(replaceField([...base, "splitWith"], expense.splitWith, splitWith));
+      const names = (splitWith.users ?? []).map((u) => tripMembers(trip).get(u.id));
+      changes.push(names.length ? `split between → ${names.join(" + ")}` : "split → none");
+    }
+  }
+
   return { ops, changes };
 }
 
@@ -164,10 +208,12 @@ export async function editExpense(
       args.new_amount !== undefined ||
       args.new_currency !== undefined ||
       args.new_category !== undefined ||
-      args.new_date !== undefined;
+      args.new_date !== undefined ||
+      args.new_paid_by !== undefined ||
+      args.new_split_with !== undefined;
     if (!hasNewValue) {
       throw new WanderlogValidationError(
-        "Nothing to edit — supply at least one of new_description, new_amount, new_currency, new_category, or new_date.",
+        "Nothing to edit — supply at least one of new_description, new_amount, new_currency, new_category, new_date, new_paid_by, or new_split_with.",
       );
     }
 
@@ -188,7 +234,7 @@ export async function editExpense(
             content: [
               {
                 type: "text" as const,
-                text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
+                text: `"${args.description}" matches ${matches.length} expenses:\n${formatCandidateList(matches, 10, trip)}\n\nRe-call with a more specific description, or add a date / amount / currency filter to pick one.`,
               },
             ],
             isError: true,
@@ -196,21 +242,21 @@ export async function editExpense(
         };
       }
       const { index, expense } = matches[0]!;
-      const { ops, changes } = buildEditOps(expense, index, args);
+      const { ops, changes } = buildEditOps(expense, index, args, trip);
       if (ops.length === 0) {
         return {
           response: {
             content: [
               {
                 type: "text" as const,
-                text: `No changes — ${formatExpense(expense)} already has those values.`,
+                text: `No changes — ${formatExpense(expense, trip)} already has those values.`,
               },
             ],
           },
         };
       }
       await submit(ops);
-      return { changes, expense, tripTitle: trip.title };
+      return { changes, expense, trip, tripTitle: trip.title };
     });
     if ("response" in result && result.response) return result.response;
 
@@ -218,7 +264,7 @@ export async function editExpense(
       content: [
         {
           type: "text",
-          text: `Updated expense ${formatExpense(result.expense)} in "${result.tripTitle}": ${result.changes.join(", ")}.`,
+          text: `Updated expense ${formatExpense(result.expense, result.trip)} in "${result.tripTitle}": ${result.changes.join(", ")}.`,
         },
       ],
     };

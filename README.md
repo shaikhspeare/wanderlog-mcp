@@ -18,6 +18,7 @@ The agent calls the tools, interleaves places and notes for each day, adds hotel
 
 ## What's New (Unreleased)
 
+- Budget expenses now track who paid and who they're split between. `wanderlog_list_expenses` shows the payer and split on shared trips, plus settle-up payments between members; `wanderlog_add_expense` takes `paid_by` and `split_with`, and `wanderlog_edit_expense` takes `new_paid_by` and `new_split_with`. Members are named by first name, full name, or username.
 - Custom-list lifecycle operations now reject duplicate or ambiguous section headings instead of silently changing the first match.
 - `wanderlog_search_hotels` — search Wanderlog's hotel aggregator across airbnb, expedia, google, and kayak. Returns ranked offers with per-vendor price comparison and faceted filter discovery so the LLM never has to memorise Wanderlog's internal enum values.
 - A failed startup authentication probe now gets one shared retry on the first tool call, allowing valid sessions to recover from a transient network or proxy error without restarting the server.
@@ -114,10 +115,10 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_transit`               | Add a ferry, bus, or train leg (carrier, from/to, dates/times) to the shared Transit section      |
 | `wanderlog_add_car_rental`            | Add a rental car with pick-up/drop-off locations and times                                        |
 | `wanderlog_add_checklist`             | Add a pre-trip or per-day checklist                                                               |
-| `wanderlog_add_expense`               | Log a budget expense (amount, category, currency), optionally linked to a place                   |
-| `wanderlog_list_expenses`             | List budget expenses, optionally filtered by description / date / amount / currency               |
+| `wanderlog_add_expense`               | Log a budget expense (amount, category, currency, payer, split), optionally linked to a place     |
+| `wanderlog_list_expenses`             | List budget expenses with payer, split, and settle-ups; filter by description / date / amount     |
 | `wanderlog_remove_expense`            | Remove a budget expense by description (with optional date / amount / currency filters)           |
-| `wanderlog_edit_expense`              | Change a budget expense's description, amount, currency, category, or date                        |
+| `wanderlog_edit_expense`              | Change a budget expense's description, amount, currency, category, date, payer, or split          |
 | `wanderlog_annotate_place`            | Update an existing place with a note, start/end time, or both                                     |
 | `wanderlog_remove_place`              | Remove a place by natural-language reference                                                      |
 | `wanderlog_move_block`                | Move an existing place or reservation block within its current section                            |

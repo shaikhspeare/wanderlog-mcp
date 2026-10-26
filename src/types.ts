@@ -190,8 +190,7 @@ export type ExpenseAmount = {
 /**
  * A budget expense at `trip.itinerary.budget.expenses[]`. Only the fields we
  * read or edit are typed; the index signature preserves the many other fields
- * Wanderlog attaches (paidByUser, splitWith, blockId, …) so edits don't drop
- * them.
+ * Wanderlog attaches (blockId, …) so edits don't drop them.
  */
 export type Expense = {
   id: number;
@@ -202,11 +201,39 @@ export type Expense = {
   date?: string;
   /** Trip day the expense is grouped under — this is what the budget UI shows. */
   associatedDate?: string;
+  paidByUserId?: number;
+  paidByUser?: UserRef;
+  splitWith?: ExpenseSplit;
+  [k: string]: unknown;
+};
+
+/** A user on a budget entry, e.g. `{ type: "registered", id: 123 }`. */
+export type UserRef = {
+  type: string;
+  id: number;
+  [k: string]: unknown;
+};
+
+/** Who an expense is split between. `individuals` with no users means not split. */
+export type ExpenseSplit = {
+  type: string;
+  users?: UserRef[];
+  [k: string]: unknown;
+};
+
+/** A settle-up payment from one trip member to another. */
+export type BudgetPayment = {
+  amount?: ExpenseAmount;
+  fromUser?: UserRef;
+  toUser?: UserRef;
+  /** ISO datetime. */
+  paidAt?: string;
   [k: string]: unknown;
 };
 
 export type Budget = {
   expenses?: Expense[];
+  payments?: BudgetPayment[];
   [k: string]: unknown;
 };
 
