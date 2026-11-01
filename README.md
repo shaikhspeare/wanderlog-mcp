@@ -114,6 +114,7 @@ and a ryokan in Shinjuku."
 | `wanderlog_add_transit`               | Add a ferry, bus, or train leg (carrier, from/to, dates/times) to the shared Transit section      |
 | `wanderlog_add_car_rental`            | Add a rental car with pick-up/drop-off locations and times                                        |
 | `wanderlog_add_checklist`             | Add a pre-trip or per-day checklist                                                               |
+| `wanderlog_set_checklist_item`        | Tick or untick a checklist item by its text                                                       |
 | `wanderlog_add_expense`               | Log a budget expense (amount, category, currency), optionally linked to a place                   |
 | `wanderlog_list_expenses`             | List budget expenses, optionally filtered by description / date / amount / currency               |
 | `wanderlog_remove_expense`            | Remove a budget expense by description (with optional date / amount / currency filters)           |
