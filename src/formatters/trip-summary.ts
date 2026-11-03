@@ -1,11 +1,11 @@
 import { tripForwardingEmail } from "../forwarding-email.js";
+import { deltaToMarkdown } from "../rich-text.js";
 import type {
   Block,
   ChecklistBlock,
   FlightBlock,
   NoteBlock,
   PlaceBlock,
-  QuillDelta,
   RentalCarBlock,
   Section,
   TransitBlock,
@@ -64,7 +64,7 @@ function renderSection(section: Section, format: ResponseFormat): string | null 
     return renderDaySection(section, format);
   }
 
-  const sectionText = section.text ? quillToPlain(section.text).trim() : "";
+  const sectionText = section.text ? trimNote(deltaToMarkdown(section.text)) : "";
   const blockLines = (section.blocks ?? [])
     .map((b) => formatBlockLine(b, format))
     .filter(Boolean) as string[];
@@ -186,7 +186,8 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
     ? `${formatTime(block.startTime)}${block.endTime ? `–${formatTime(block.endTime)}` : ""} `
     : "";
 
-  const inlineNote = quillToPlain(block.text).replace(/\s+/g, " ").trim();
+  const noteMarkdown = trimNote(deltaToMarkdown(block.text));
+  const inlineNote = noteMarkdown.replace(/\s+/g, " ").trim();
   const hasNote = inlineNote.length > 0;
 
   if (format === "concise") {
@@ -209,20 +210,33 @@ function formatPlaceBlock(block: PlaceBlock, format: ResponseFormat): string | n
     parts.push(`check-in ${block.hotel.checkIn} → check-out ${block.hotel.checkOut}`);
   if (block.hotel?.confirmationNumber) parts.push(`conf. ${block.hotel.confirmationNumber}`);
   if (hasNote) {
-    parts.push(`📝 ${inlineNote}`);
+    parts.push(`📝 ${indentLines(noteMarkdown)}`);
   }
   return parts.join(" · ");
 }
 
 function formatNoteBlock(block: NoteBlock, format: ResponseFormat): string | null {
-  const text = quillToPlain(block.text);
+  const text = trimNote(deltaToMarkdown(block.text));
   if (!text) return null;
-  const oneLine = text.replace(/\s+/g, " ").trim();
   if (format === "concise") {
+    const oneLine = text.replace(/\s+/g, " ");
     const truncated = oneLine.length > 200 ? `${oneLine.slice(0, 197)}…` : oneLine;
     return `📝 ${truncated}`;
   }
-  return `📝 ${oneLine}`;
+  return `📝 ${indentLines(text)}`;
+}
+
+/** Trims a note without eating the indentation of a nested first list item. */
+function trimNote(text: string): string {
+  return text.replace(/^\s*\n/, "").trimEnd();
+}
+
+/**
+ * Detailed output keeps a note's line breaks so it can be edited and written
+ * back without collapsing its layout.
+ */
+function indentLines(text: string): string {
+  return text.replace(/[ \t]+\n/g, "\n").replace(/\n/g, "\n      ");
 }
 
 function formatChecklistBlock(block: ChecklistBlock, format: ResponseFormat): string | null {
@@ -235,7 +249,7 @@ function formatChecklistBlock(block: ChecklistBlock, format: ResponseFormat): st
     const checked = items.filter((i) => i.checked).length;
     const itemPreviews = items.slice(0, 5).map((i) => {
       const mark = i.checked ? "[x]" : "[ ]";
-      const text = quillToPlain(i.text).replace(/\s+/g, " ").trim();
+      const text = deltaToMarkdown(i.text).replace(/\s+/g, " ").trim();
       return `${mark} ${text || "(empty)"}`;
     });
     const suffix = items.length > 5 ? ` (+${items.length - 5} more)` : "";
@@ -245,7 +259,7 @@ function formatChecklistBlock(block: ChecklistBlock, format: ResponseFormat): st
 
   const lines = items.map((i) => {
     const mark = i.checked ? "[x]" : "[ ]";
-    const text = quillToPlain(i.text).replace(/\s+/g, " ").trim();
+    const text = deltaToMarkdown(i.text).replace(/\s+/g, " ").trim();
     return `  ${mark} ${text || "(empty)"}`;
   });
   const checked = items.filter((i) => i.checked).length;
@@ -285,7 +299,7 @@ function formatTransitBlock(block: TransitBlock, format: ResponseFormat): string
   const to = block.arrive?.place?.name ?? "?";
   const departDate = block.depart?.date ?? "";
   const departTime = block.depart?.time ? ` ${block.depart.time}` : "";
-  const note = quillToPlain(block.text).replace(/\s+/g, " ").trim();
+  const note = deltaToMarkdown(block.text).replace(/\s+/g, " ").trim();
 
   if (format === "concise") {
     const noteLine = note ? `\n    📝 ${note.length > 120 ? `${note.slice(0, 117)}…` : note}` : "";
@@ -336,12 +350,6 @@ function formatTime(iso: string): string {
   // ISO times like "2025-11-13T09:00:00Z" or "09:00" — keep it tolerant.
   const match = /(\d{2}:\d{2})/.exec(iso);
   return match ? match[1]! : iso;
-}
-
-/** Extract plain text from a Quill Delta `{ops: [{insert: "..."}]}`. */
-function quillToPlain(delta: QuillDelta | undefined): string {
-  if (!delta?.ops) return "";
-  return delta.ops.map((op) => (typeof op.insert === "string" ? op.insert : "")).join("");
 }
 
 function formatDayLabel(section: Section): string {

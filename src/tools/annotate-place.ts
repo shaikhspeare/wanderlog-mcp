@@ -3,6 +3,7 @@ import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolvePlaceRef } from "../resolvers/place-ref.js";
+import { deltaPlainText, markdownToDelta, NOTE_MARKDOWN_HINT } from "../rich-text.js";
 import { isPlaceBlock, type QuillDelta } from "../types.js";
 import { extractDeltaText } from "./remove-note.js";
 import {
@@ -26,7 +27,7 @@ export const annotatePlaceInputSchema = {
     .string()
     .optional()
     .describe(
-      "Set or replace the inline note on this place. Practical context: transit, tips, timing, what to see.",
+      `Set or replace the inline note on this place. Practical context: transit, tips, timing, what to see. ${NOTE_MARKDOWN_HINT} To keep existing formatting, start from the note as wanderlog_get_trip renders it (Markdown, detailed format, minus the six spaces it indents continuation lines with) and write it back whole.`,
     ),
   start_time: z
     .string()
@@ -173,7 +174,7 @@ export async function annotatePlace(
       // Equality, not `includes`: an appended note still contains the new text.
       const noteText = normalizeNote(extractDeltaText(record.text as QuillDelta | undefined));
       if (
-        (args.note && noteText !== normalizeNote(args.note)) ||
+        (args.note && noteText !== normalizeNote(deltaPlainText(markdownToDelta(args.note)))) ||
         (args.start_time && record.startTime !== args.start_time) ||
         (args.end_time && record.endTime !== args.end_time)
       ) {

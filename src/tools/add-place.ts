@@ -3,8 +3,10 @@ import type { AppContext } from "../context.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolveDay } from "../resolvers/day.js";
+import { NOTE_MARKDOWN_HINT } from "../rich-text.js";
 import type { PlaceData } from "../types.js";
 import {
+  buildNoteDelta,
   buildPlaceBlock,
   findBlockById,
   findDaySectionByDate,
@@ -51,7 +53,7 @@ export const addPlaceInputSchema = {
     .string()
     .optional()
     .describe(
-      "Optional inline note attached directly to this place. Use for practical context: transit directions, what to order, booking tips, time guidance. Appears on the place itself in Wanderlog (not as a separate note block).",
+      `Optional inline note attached directly to this place. Use for practical context: transit directions, what to order, booking tips, time guidance. Appears on the place itself in Wanderlog (not as a separate note block). ${NOTE_MARKDOWN_HINT}`,
     ),
   start_time: z
     .string()
@@ -212,7 +214,7 @@ export async function addPlace(
                 "text",
               ],
               t: "rich-text",
-              o: [{ insert: `${args.note}\n` }],
+              o: buildNoteDelta(args.note).ops,
             },
           ]);
         }

@@ -27,6 +27,16 @@ describe("buildNoteBlock", () => {
     expect(buildNoteBlock(42, "Bring cash").text).toEqual({ ops: [{ insert: "Bring cash\n" }] });
   });
 
+  it("embeds Markdown as formatted text", () => {
+    expect(buildNoteBlock(42, "**Cash**\n- coins").text).toEqual({
+      ops: [
+        { insert: "Cash", attributes: { bold: true } },
+        { insert: "\ncoins" },
+        { insert: "\n", attributes: { list: "bullet" } },
+      ],
+    });
+  });
+
   it("generates unique IDs across calls", () => {
     const ids = new Set(Array.from({ length: 50 }, () => buildNoteBlock(1).id));
     expect(ids.size).toBeGreaterThan(45);
