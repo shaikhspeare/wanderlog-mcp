@@ -47,6 +47,11 @@ import {
 } from "./tools/update-trip-dates.js";
 import { renameDay, renameDayDescription, renameDayInputSchema } from "./tools/rename-day.js";
 import { editNote, editNoteDescription, editNoteInputSchema } from "./tools/edit-note.js";
+import {
+  setChecklistItem,
+  setChecklistItemDescription,
+  setChecklistItemInputSchema,
+} from "./tools/set-checklist-item.js";
 import { removeNote, removeNoteDescription, removeNoteInputSchema } from "./tools/remove-note.js";
 import {
   listExpenses,
@@ -419,6 +424,18 @@ export function buildServer(ctx: AppContext): McpServer {
       inputSchema: editNoteInputSchema,
     },
     requireAuth(ctx, async (args) => editNote(ctx, args as Parameters<typeof editNote>[1])),
+  );
+
+  server.registerTool(
+    "wanderlog_set_checklist_item",
+    {
+      title: "Tick or untick a checklist item in a Wanderlog trip",
+      description: setChecklistItemDescription,
+      inputSchema: setChecklistItemInputSchema,
+    },
+    requireAuth(ctx, async (args) =>
+      setChecklistItem(ctx, args as Parameters<typeof setChecklistItem>[1]),
+    ),
   );
 
   server.registerTool(
