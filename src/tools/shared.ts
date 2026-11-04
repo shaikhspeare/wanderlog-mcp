@@ -3,6 +3,7 @@ import type { CacheEntry } from "../cache/trip-cache.js";
 import { WanderlogError, WanderlogValidationError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
 import { resolveDay } from "../resolvers/day.js";
+import { type DeltaOp, LINE_FORMATS, markdownToDelta } from "../rich-text.js";
 import type {
   Block,
   ChecklistItem,
@@ -424,7 +425,7 @@ export function buildNoteBlock(userId: number, text = ""): Record<string, unknow
   return {
     id: generateBlockId(),
     type: "note",
-    text: { ops: [{ insert: `${text}\n` }] },
+    text: buildNoteDelta(text),
     addedBy: { type: "user", userId },
     attachments: [],
   };
@@ -449,7 +450,7 @@ export function buildTransitBlock(
     depart: args.depart,
     arrive: args.arrive,
     addedBy: { type: "user", userId },
-    text: { ops: [{ insert: args.notes ? `${args.notes}\n` : "\n" }] },
+    text: buildNoteDelta(args.notes),
     attachments: [],
   };
   if (args.confirmationNumber) block.confirmationNumber = args.confirmationNumber;
@@ -475,7 +476,7 @@ export function buildRentalCarBlock(
     addedBy: { type: "user", userId },
     pickUp: args.pickUp,
     dropOff: args.dropOff,
-    text: { ops: [{ insert: args.notes ? `${args.notes}\n` : "\n" }] },
+    text: buildNoteDelta(args.notes),
     attachments: [],
   };
   if (args.confirmationNumber) block.confirmationNumber = args.confirmationNumber;
@@ -598,7 +599,7 @@ export function buildChecklistBlock(
   const checklistItems: ChecklistItem[] = items.map((text) => ({
     id: generateBlockId(),
     checked: false,
-    text: { ops: [{ insert: `${text}\n` }] },
+    text: buildNoteDelta(text),
   }));
   return {
     id: generateBlockId(),
@@ -672,19 +673,35 @@ export function normalizeNote(note: string): string {
 /**
  * A bare `insert` inserts at offset 0 rather than replacing, so the existing
  * note has to be deleted explicitly. The document's trailing newline is kept
- * and the replacement goes in ahead of it.
+ * and the replacement goes in ahead of it; since that newline holds the last
+ * line's list format, it is retained with the new line's format.
  */
 export function buildNoteReplaceDelta(
   existing: QuillDelta | undefined,
   note: string,
 ): Array<Record<string, unknown>> {
-  const lastInsert = existing?.ops?.at(-1)?.insert;
-  const keepsTerminator = typeof lastInsert === "string" && lastInsert.endsWith("\n");
+  const lastOp = existing?.ops?.at(-1);
+  const keepsTerminator = typeof lastOp?.insert === "string" && lastOp.insert.endsWith("\n");
   const deleteLen = quillLength(existing) - (keepsTerminator ? 1 : 0);
-  const body = normalizeNote(note);
 
-  const ops: Array<Record<string, unknown>> = [];
-  if (deleteLen > 0) ops.push({ delete: deleteLen });
-  ops.push({ insert: keepsTerminator ? body : `${body}\n` });
+  const ops: DeltaOp[] = markdownToDelta(`${normalizeNote(note)}\n`);
+  if (deleteLen > 0) ops.unshift({ delete: deleteLen });
+  if (!keepsTerminator) return ops;
+
+  const terminator = ops.pop()!;
+  const text = terminator.insert as string;
+  if (text.length > 1) ops.push({ ...terminator, insert: text.slice(0, -1) });
+
+  const format: Record<string, unknown> = {};
+  for (const key of LINE_FORMATS) {
+    const next = terminator.attributes?.[key] ?? null;
+    if ((lastOp?.attributes?.[key] ?? null) !== next) format[key] = next;
+  }
+  if (Object.keys(format).length > 0) ops.push({ retain: 1, attributes: format });
   return ops;
+}
+
+/** Note text as a fresh Quill document, with the trailing newline Quill expects. */
+export function buildNoteDelta(text: string | undefined): QuillDelta {
+  return { ops: text ? markdownToDelta(`${text}\n`) : [{ insert: "\n" }] };
 }

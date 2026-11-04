@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from "node:util";
 import { WanderlogError } from "../errors.js";
+import { composeDelta, type DeltaOp } from "../rich-text.js";
 import type { TripPlan } from "../types.js";
 
 export type Json0Op = {
@@ -65,50 +66,22 @@ function navigateParent(doc: JsonContainer, path: (string | number)[]): JsonCont
 }
 
 /**
- * Apply a Quill Delta "rich-text" subtype op to a QuillDelta field.
- *
- * Quill Delta compose semantics: walk through the incoming ops in order.
- * `retain(n)` skips n characters, `insert(s)` inserts text, `delete(n)`
- * removes n characters. We rebuild the delta's plain-text string, then
- * write back a new `{ops: [{insert: result}]}`.
- *
- * This is intentionally simplified — we flatten the existing delta to
- * plain text, apply the transform, and produce a single-insert delta.
- * Formatting attributes on the original text are lost, which is acceptable
- * because our tools only create plain-text notes. Remote rich-text edits
- * from the UI that carry attributes will lose formatting in our cache, but
- * the server holds the authoritative version.
+ * Apply a Quill Delta "rich-text" subtype op to a QuillDelta field, keeping
+ * formatting attributes and embeds so the cache matches what the server stores.
  */
 function applyRichTextOp(parent: JsonContainer, key: string | number, payload: unknown): void {
   const target = Array.isArray(parent)
     ? parent[key as number]
     : (parent as Record<string, unknown>)[key as string];
 
-  // Extract current plain text from the QuillDelta
-  let current = "";
-  if (target && typeof target === "object" && "ops" in (target as Record<string, unknown>)) {
-    const ops = (target as { ops: Array<{ insert?: string }> }).ops;
-    if (Array.isArray(ops)) {
-      current = ops.map((op) => (typeof op.insert === "string" ? op.insert : "")).join("");
-    }
-  }
-
-  // Apply the delta ops to the current text
   if (!Array.isArray(payload)) return;
-  let pos = 0;
-  let result = current;
-  for (const dop of payload as Array<Record<string, unknown>>) {
-    if (typeof dop.retain === "number") {
-      pos += dop.retain;
-    } else if (typeof dop.insert === "string") {
-      result = result.slice(0, pos) + dop.insert + result.slice(pos);
-      pos += dop.insert.length;
-    } else if (typeof dop.delete === "number") {
-      result = result.slice(0, pos) + result.slice(pos + dop.delete);
-    }
+  let current: DeltaOp[] = [];
+  if (target && typeof target === "object" && "ops" in (target as Record<string, unknown>)) {
+    const ops = (target as { ops: unknown }).ops;
+    if (Array.isArray(ops)) current = ops as DeltaOp[];
   }
 
-  const newDelta = { ops: [{ insert: result }] };
+  const newDelta = { ops: composeDelta(current, payload as DeltaOp[]) };
   if (Array.isArray(parent)) {
     parent[key as number] = newDelta;
   } else {

@@ -50,12 +50,11 @@ function makeCtx(note: string) {
     },
   } as unknown as AppContext;
 
-  const currentNote = () => {
-    const block = entry.snapshot.itinerary.sections[0]!.blocks[0]! as { text?: QuillDelta };
-    return extractDeltaText(block.text);
-  };
+  const currentDelta = () =>
+    (entry.snapshot.itinerary.sections[0]!.blocks[0]! as { text?: QuillDelta }).text;
+  const currentNote = () => extractDeltaText(currentDelta());
 
-  return { ctx, currentNote };
+  return { ctx, currentNote, currentDelta };
 }
 
 const annotate = (ctx: AppContext, note: string) =>
@@ -104,6 +103,36 @@ describe("annotatePlace note replacement", () => {
 
     expect(currentNote()).toBe("single replacement line\n");
   });
+
+  it("writes Markdown bold and links as formatted runs", async () => {
+    const { ctx, currentDelta } = makeCtx("old\n");
+
+    const result = await annotate(
+      ctx,
+      "**Option A**\nGPX: [komoot.com](https://www.komoot.com/smarttour/1)",
+    );
+
+    expect(result.isError).toBeFalsy();
+    expect(currentDelta()?.ops).toEqual([
+      { insert: "Option A", attributes: { bold: true } },
+      { insert: "\nGPX: " },
+      { insert: "komoot.com", attributes: { link: "https://www.komoot.com/smarttour/1" } },
+      { insert: "\n" },
+    ]);
+  });
+
+  it("writes a list over a list, ending in the right line format", async () => {
+    const { ctx, currentDelta } = makeCtx("old\n");
+
+    await annotate(ctx, "- a\n  - b");
+    await annotate(ctx, "**Neu**\n1. x");
+
+    expect(currentDelta()?.ops).toEqual([
+      { insert: "Neu", attributes: { bold: true } },
+      { insert: "\nx" },
+      { insert: "\n", attributes: { list: "ordered" } },
+    ]);
+  });
 });
 
 describe("buildNoteReplaceDelta", () => {
@@ -127,6 +156,27 @@ describe("buildNoteReplaceDelta", () => {
 
   it("handles an absent text field", () => {
     expect(buildNoteReplaceDelta(undefined, "new")).toEqual([{ insert: "new\n" }]);
+  });
+
+  it("gives the kept newline the new last line's list format", () => {
+    expect(buildNoteReplaceDelta({ ops: [{ insert: "old\n" }] }, "- a\n- b")).toEqual([
+      { delete: 3 },
+      { insert: "a" },
+      { insert: "\n", attributes: { list: "bullet" } },
+      { insert: "b" },
+      { retain: 1, attributes: { list: "bullet" } },
+    ]);
+  });
+
+  it("clears a list format the kept newline no longer needs", () => {
+    const existing = {
+      ops: [{ insert: "a" }, { insert: "\n", attributes: { list: "bullet", indent: 1 } }],
+    };
+    expect(buildNoteReplaceDelta(existing, "plain")).toEqual([
+      { delete: 1 },
+      { insert: "plain" },
+      { retain: 1, attributes: { list: null, indent: null } },
+    ]);
   });
 
   it("does not double the newline when the note already ends in one", () => {

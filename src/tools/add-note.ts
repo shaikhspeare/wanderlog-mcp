@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { AppContext } from "../context.js";
 import { WanderlogError } from "../errors.js";
 import type { Json0Op } from "../ot/apply.js";
+import { NOTE_MARKDOWN_HINT } from "../rich-text.js";
 import { buildNoteBlock, findBlockTargetSection, requireUserId, submitOp } from "./shared.js";
 
 export const addNoteInputSchema = z.object({
@@ -9,7 +10,7 @@ export const addNoteInputSchema = z.object({
     .string()
     .min(1)
     .describe("The trip to add the note to. Use wanderlog_list_trips if you don't know the key."),
-  text: z.string().min(1).describe("The note text. Plain text — can be multi-line."),
+  text: z.string().min(1).describe(`The note text, can be multi-line. ${NOTE_MARKDOWN_HINT}`),
   day: z
     .string()
     .min(1)

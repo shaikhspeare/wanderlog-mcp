@@ -5,13 +5,23 @@ import type { Json0Op } from "../ot/apply.js";
 import { resolveDay } from "../resolvers/day.js";
 import type { ChecklistBlock, NoteBlock, QuillDelta, TripPlan } from "../types.js";
 import { isChecklistBlock, isPlaceBlock } from "../types.js";
+import { markdownToDelta } from "../rich-text.js";
 import { findDaySectionByDate, submitOp } from "./shared.js";
 import { extractDeltaText } from "./remove-note.js";
 
 export const editNoteInputSchema = {
   trip_key: z.string().min(1).describe("The trip to edit."),
-  old_text: z.string().min(1).describe("Substring to find and replace (case-insensitive)."),
-  new_text: z.string().describe("Replacement text."),
+  old_text: z
+    .string()
+    .min(1)
+    .describe(
+      "Substring to find and replace (case-insensitive). Matches the visible text, without Markdown markers.",
+    ),
+  new_text: z
+    .string()
+    .describe(
+      "Replacement text. Supports inline Markdown: **bold**, _italic_, ~~strike~~, <u>underline</u> and [label](https://…) links. To change list formatting, rewrite the whole note instead.",
+    ),
   day: z
     .string()
     .optional()
@@ -235,7 +245,7 @@ export async function editNote(
         const deltaOps: Array<Record<string, unknown>> = [];
         if (target.offset > 0) deltaOps.push({ retain: target.offset });
         deltaOps.push({ delete: target.matchedLen });
-        if (args.new_text) deltaOps.push({ insert: args.new_text });
+        if (args.new_text) deltaOps.push(...markdownToDelta(args.new_text, { blocks: false }));
         ops = [{ p: target.fieldPath, t: "rich-text", o: deltaOps }];
       } else {
         const newValue =
