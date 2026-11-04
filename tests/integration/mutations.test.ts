@@ -243,9 +243,11 @@ describe("Mutation tools (live round-trip)", () => {
     if (praça && isPlaceBlock(praça)) {
       expect(praça.startTime).toBe("11:00");
       expect(praça.endTime).toBe("12:00");
-      expect(praça.text?.ops?.some(
-        (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
-      )).toBe(true);
+      expect(
+        praça.text?.ops?.some(
+          (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
+        ),
+      ).toBe(true);
     }
   }, 60_000);
 
@@ -285,9 +287,7 @@ describe("Mutation tools (live round-trip)", () => {
       .map((section) => section.heading);
     expect(customHeadings).toEqual(["Food", "Sights"]);
     const sights = trip.itinerary.sections.find((section) => section.heading === "Sights");
-    const placeNames = sights?.blocks
-      .filter(isPlaceBlock)
-      .map((block) => block.place.name) ?? [];
+    const placeNames = sights?.blocks.filter(isPlaceBlock).map((block) => block.place.name) ?? [];
     expect(placeNames[0]).toMatch(/Praça do Comércio/i);
   }, 60_000);
 

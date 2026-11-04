@@ -86,10 +86,7 @@ describe("reorderPlaces", () => {
     });
     expect(firstResult.isError).toBeUndefined();
     const firstPlaces = first.snapshot().itinerary.sections[0]!.blocks.filter(isPlaceBlock);
-    expect(firstPlaces.map((block) => block.place.name)).toEqual([
-      "Cafe Gamma",
-      "Bakery Beta",
-    ]);
+    expect(firstPlaces.map((block) => block.place.name)).toEqual(["Cafe Gamma", "Bakery Beta"]);
     expect(firstPlaces[0]).toEqual(gamma);
 
     const last = makeFakeContext();
@@ -102,10 +99,7 @@ describe("reorderPlaces", () => {
     });
     expect(lastResult.isError).toBeUndefined();
     const lastPlaces = last.snapshot().itinerary.sections[0]!.blocks.filter(isPlaceBlock);
-    expect(lastPlaces.map((block) => block.place.name)).toEqual([
-      "Cafe Gamma",
-      "Bakery Beta",
-    ]);
+    expect(lastPlaces.map((block) => block.place.name)).toEqual(["Cafe Gamma", "Bakery Beta"]);
     expect(lastPlaces[1]).toEqual(beta);
   });
 
@@ -154,7 +148,9 @@ describe("reorderSections", () => {
     });
     expect(firstResult.isError).toBeUndefined();
     expect(customHeadings(first.snapshot())).toEqual(["Sights", "Food"]);
-    expect(first.snapshot().itinerary.sections.find((section) => section.id === 150)).toEqual(sights);
+    expect(first.snapshot().itinerary.sections.find((section) => section.id === 150)).toEqual(
+      sights,
+    );
 
     const last = makeFakeContext();
     const lastResult = await reorderSections(last.ctx, {

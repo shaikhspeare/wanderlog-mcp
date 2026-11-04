@@ -19,9 +19,7 @@ export function resolveOrganizationTarget(
 ): OrganizationTarget {
   const supplied = Number(args.section !== undefined) + Number(args.day !== undefined);
   if (supplied !== 1) {
-    throw new WanderlogValidationError(
-      "Provide exactly one section/day target.",
-    );
+    throw new WanderlogValidationError("Provide exactly one section/day target.");
   }
 
   if (args.day !== undefined) {

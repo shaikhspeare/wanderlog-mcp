@@ -7,15 +7,8 @@ import { isCustomSection, resolveSectionRef, submitOp } from "./shared.js";
 
 export const reorderSectionsInputSchema = {
   trip_key: z.string().min(1).describe("The trip containing the custom list to reorder."),
-  section: z
-    .string()
-    .min(1)
-    .describe("Unique heading of the custom list to move."),
-  position: z
-    .number()
-    .int()
-    .positive()
-    .describe("New 1-based position among custom lists only."),
+  section: z.string().min(1).describe("Unique heading of the custom list to move."),
+  position: z.number().int().positive().describe("New 1-based position among custom lists only."),
 };
 
 export const reorderSectionsDescription = `
@@ -63,9 +56,7 @@ export async function reorderSections(
         customSections.findIndex((item) => item.section.id === resolved.match.section.id) + 1;
 
       const source = resolved.match;
-      const remaining = trip.itinerary.sections.filter(
-        (_section, index) => index !== source.index,
-      );
+      const remaining = trip.itinerary.sections.filter((_section, index) => index !== source.index);
       const remainingCustom = remaining
         .map((section, index) => ({ section, index }))
         .filter(({ section }) => customSections.some((item) => item.section.id === section.id));

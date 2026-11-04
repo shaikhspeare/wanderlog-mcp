@@ -23,9 +23,7 @@ export const reorderPlacesInputSchema = z.object({
     .string()
     .min(1)
     .optional()
-    .describe(
-      "Undated list heading to reorder. Provide exactly one of section and day.",
-    ),
+    .describe("Undated list heading to reorder. Provide exactly one of section and day."),
   day: z
     .string()
     .min(1)
@@ -68,9 +66,7 @@ export async function reorderPlaces(
         .slice(0, match.blockIndex + 1)
         .filter(isPlaceBlock).length;
 
-      const remaining = target.section.blocks.filter(
-        (_block, index) => index !== match.blockIndex,
-      );
+      const remaining = target.section.blocks.filter((_block, index) => index !== match.blockIndex);
       const destinationBlockIndex = placeInsertionIndex(remaining, args.position);
       if (currentPlacePosition !== args.position) {
         const ops: Json0Op[] = [
@@ -85,7 +81,10 @@ export async function reorderPlaces(
       const reordered = entry.snapshot.itinerary.sections[target.index];
       const placeIds = reordered?.blocks.filter(isPlaceBlock).map((block) => block.id) ?? [];
       if (placeIds[args.position - 1] !== match.block.id) {
-        throw new WanderlogError("Reordered place is not at the requested position", "stale_target");
+        throw new WanderlogError(
+          "Reordered place is not at the requested position",
+          "stale_target",
+        );
       }
       return {
         name: match.block.place.name,

@@ -101,10 +101,7 @@ describe("movePlace", () => {
     expect(moved.isError).toBeUndefined();
     expect(valid.snapshot().itinerary.sections[3]!.blocks[0]!.id).toBe(50001);
 
-    for (const target of [
-      { target_day: "day 9" },
-      { target_section: "Does not exist" },
-    ]) {
+    for (const target of [{ target_day: "day 9" }, { target_section: "Does not exist" }]) {
       const invalid = makeFakeContext();
       const result = await movePlace(invalid.ctx, {
         trip_key: "T",

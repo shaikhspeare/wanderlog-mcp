@@ -101,11 +101,7 @@ import {
   deleteSectionDescription,
   deleteSectionInputSchema,
 } from "./tools/delete-section.js";
-import {
-  movePlace,
-  movePlaceDescription,
-  movePlaceInputSchema,
-} from "./tools/move-place.js";
+import { movePlace, movePlaceDescription, movePlaceInputSchema } from "./tools/move-place.js";
 import {
   reorderPlaces,
   reorderPlacesDescription,
@@ -596,8 +592,7 @@ export function buildServer(ctx: AppContext): McpServer {
         openWorldHint: false,
       },
     },
-    requireAuth(ctx, async (args) =>
-      movePlace(ctx, args as Parameters<typeof movePlace>[1])),
+    requireAuth(ctx, async (args) => movePlace(ctx, args as Parameters<typeof movePlace>[1])),
   );
 
   server.registerTool(
@@ -614,7 +609,8 @@ export function buildServer(ctx: AppContext): McpServer {
       },
     },
     requireAuth(ctx, async (args) =>
-      reorderPlaces(ctx, args as Parameters<typeof reorderPlaces>[1])),
+      reorderPlaces(ctx, args as Parameters<typeof reorderPlaces>[1]),
+    ),
   );
 
   server.registerTool(
@@ -631,7 +627,8 @@ export function buildServer(ctx: AppContext): McpServer {
       },
     },
     requireAuth(ctx, async (args) =>
-      reorderSections(ctx, args as Parameters<typeof reorderSections>[1])),
+      reorderSections(ctx, args as Parameters<typeof reorderSections>[1]),
+    ),
   );
 
   server.registerTool(

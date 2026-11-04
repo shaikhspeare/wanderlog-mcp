@@ -39,9 +39,7 @@ export const movePlaceInputSchema = z.object({
     .int()
     .positive()
     .optional()
-    .describe(
-      "Optional 1-based position among places in the destination. Omit to place it last.",
-    ),
+    .describe("Optional 1-based position among places in the destination. Omit to place it last."),
 });
 
 export const movePlaceDescription = `
