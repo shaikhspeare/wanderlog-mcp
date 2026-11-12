@@ -31,6 +31,7 @@ import type { ChecklistBlock, NoteBlock } from "../../src/types.ts";
 describe("Mutation tools (live round-trip)", () => {
   let ctx: AppContext;
   let tripKey: string | undefined;
+  let monasteryName = "Jerónimos";
 
   beforeAll(async () => {
     if (!process.env.WANDERLOG_COOKIE) {
@@ -215,19 +216,21 @@ describe("Mutation tools (live round-trip)", () => {
 
   it("moves a place to another day with notes and times intact", async () => {
     expect(tripKey).toBeDefined();
+    // A place no earlier test added, so the bare name stays unambiguous for move_place.
     const added = await addPlace(ctx, {
       trip_key: tripKey!,
-      place: "Praça do Comércio",
+      place: "Mosteiro dos Jerónimos",
       section: "Sights",
       note: "Preserve this integration-test note",
       start_time: "11:00",
       end_time: "12:00",
     });
     if (added.isError) throw new Error(`add_place failed: ${added.content[0]!.text}`);
+    monasteryName = /^Added (.+?) to /.exec(added.content[0]!.text)![1]!;
 
     const moved = await movePlace(ctx, {
       trip_key: tripKey!,
-      place_ref: "Praça do Comércio",
+      place_ref: monasteryName,
       target_day: "day 2",
     });
     if (moved.isError) throw new Error(`move_place failed: ${moved.content[0]!.text}`);
@@ -236,15 +239,15 @@ describe("Mutation tools (live round-trip)", () => {
     const day2 = trip.itinerary.sections.find(
       (section) => section.mode === "dayPlan" && section.date === "2099-01-02",
     );
-    const praça = day2?.blocks.find(
-      (block) => isPlaceBlock(block) && /praça do comércio/i.test(block.place.name),
+    const monastery = day2?.blocks.find(
+      (block) => isPlaceBlock(block) && /jer[oó]nimos/i.test(block.place.name),
     );
-    expect(praça).toBeDefined();
-    if (praça && isPlaceBlock(praça)) {
-      expect(praça.startTime).toBe("11:00");
-      expect(praça.endTime).toBe("12:00");
+    expect(monastery).toBeDefined();
+    if (monastery && isPlaceBlock(monastery)) {
+      expect(monastery.startTime).toBe("11:00");
+      expect(monastery.endTime).toBe("12:00");
       expect(
-        praça.text?.ops?.some(
+        monastery.text?.ops?.some(
           (op) => typeof op.insert === "string" && op.insert.includes("integration-test note"),
         ),
       ).toBe(true);
@@ -256,7 +259,7 @@ describe("Mutation tools (live round-trip)", () => {
     const food = await addSection(ctx, { trip_key: tripKey!, heading: "Food" });
     if (food.isError) throw new Error(`add_section failed: ${food.content[0]!.text}`);
 
-    for (const placeRef of ["Castelo de São Jorge", "Praça do Comércio"]) {
+    for (const placeRef of ["Castelo de São Jorge", monasteryName]) {
       const moved = await movePlace(ctx, {
         trip_key: tripKey!,
         place_ref: placeRef,
@@ -268,7 +271,7 @@ describe("Mutation tools (live round-trip)", () => {
     const places = await reorderPlaces(ctx, {
       trip_key: tripKey!,
       section: "Sights",
-      place_ref: "Praça do Comércio",
+      place_ref: monasteryName,
       position: 1,
     });
     if (places.isError) throw new Error(`reorder_places failed: ${places.content[0]!.text}`);
@@ -288,7 +291,58 @@ describe("Mutation tools (live round-trip)", () => {
     expect(customHeadings).toEqual(["Food", "Sights"]);
     const sights = trip.itinerary.sections.find((section) => section.heading === "Sights");
     const placeNames = sights?.blocks.filter(isPlaceBlock).map((block) => block.place.name) ?? [];
-    expect(placeNames[0]).toMatch(/Praça do Comércio/i);
+    expect(placeNames[0]).toMatch(/Jer[oó]nimos/i);
+  }, 60_000);
+
+  it("add_place resolves loose list names, creates missing lists on request, and get_trip shows empty lists", async () => {
+    expect(tripKey).toBeDefined();
+    const section = (heading: string) =>
+      trip.itinerary.sections.filter((s) => s.mode !== "dayPlan" && s.heading === heading);
+    const placeNames = (heading: string) =>
+      section(heading)[0]
+        ?.blocks.filter(isPlaceBlock)
+        .map((block) => block.place.name) ?? [];
+    let trip = await ctx.rest.getTrip(tripKey!);
+
+    const created = await addSection(ctx, { trip_key: tripKey!, heading: "Coffee & Pastry" });
+    if (created.isError) throw new Error(`add_section failed: ${created.content[0]!.text}`);
+
+    const shown = await getTrip(ctx, { trip_key: tripKey! });
+    expect(shown.content[0]!.text).toContain("Coffee & Pastry\n  (empty list)");
+
+    const loose = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Manteigaria",
+      section: "coffee and pastries",
+    });
+    if (loose.isError) throw new Error(`add_place (loose) failed: ${loose.content[0]!.text}`);
+    expect(loose.content[0]!.text).toContain('list "Coffee & Pastry"');
+
+    const missing = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Miradouro de Santa Catarina",
+      section: "Viewpoints",
+    });
+    expect(missing.isError).toBe(true);
+    expect(missing.content[0]!.text).toContain('"Coffee & Pastry"');
+    expect(missing.content[0]!.text).toContain("create_list_if_missing");
+
+    const createdOnTheFly = await addPlace(ctx, {
+      trip_key: tripKey!,
+      place: "Miradouro de Santa Catarina",
+      section: "Viewpoints",
+      create_list_if_missing: true,
+    });
+    if (createdOnTheFly.isError) {
+      throw new Error(`add_place (create list) failed: ${createdOnTheFly.content[0]!.text}`);
+    }
+
+    trip = await ctx.rest.getTrip(tripKey!);
+    expect(placeNames("Coffee & Pastry")).toHaveLength(1);
+    expect(placeNames("Coffee & Pastry")[0]).toMatch(/manteigaria/i);
+    expect(section("Viewpoints")).toHaveLength(1);
+    expect(placeNames("Viewpoints")).toHaveLength(1);
+    expect(placeNames("Viewpoints")[0]).toMatch(/santa catarina/i);
   }, 60_000);
 
   it("add_hotel adds a hotel with a check-in window", async () => {
