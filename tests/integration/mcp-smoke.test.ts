@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeAll, describe, expect, it } from "vitest";
+import { resolveTestTripKey } from "./test-trip.ts";
 
 /**
  * Smoke-tests the compiled stdio server by sending JSON-RPC frames and reading
@@ -7,6 +8,11 @@ import { afterEach, describe, expect, it } from "vitest";
  */
 describe("MCP stdio server (smoke)", () => {
   let proc: ChildProcessWithoutNullStreams | undefined;
+  let tripKey: string;
+
+  beforeAll(async () => {
+    tripKey = await resolveTestTripKey();
+  }, 20_000);
 
   afterEach(() => {
     proc?.kill("SIGINT");
@@ -167,7 +173,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_get_trip",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY,
+          trip_key: tripKey,
           response_format: "concise",
         },
       },
@@ -191,7 +197,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_search_places",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY,
+          trip_key: tripKey,
           query: "coffee",
           response_format: "concise",
         },
@@ -214,7 +220,7 @@ describe("MCP stdio server (smoke)", () => {
       params: {
         name: "wanderlog_get_trip_url",
         arguments: {
-          trip_key: process.env.WANDERLOG_TRIP_KEY,
+          trip_key: tripKey,
           mode: "edit",
         },
       },
