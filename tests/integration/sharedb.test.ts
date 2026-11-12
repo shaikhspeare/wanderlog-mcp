@@ -1,16 +1,18 @@
 import { afterEach, beforeAll, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config.ts";
 import { ShareDBClient, ShareDBPool } from "../../src/transport/sharedb.ts";
+import { resolveTestTripKey } from "./test-trip.ts";
 
-const TRIP_KEY = process.env.WANDERLOG_TRIP_KEY ?? "vzyrsyhgxvonvxcz";
+let TRIP_KEY: string;
 
 describe("ShareDBClient (live)", () => {
   let client: ShareDBClient;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     if (!process.env.WANDERLOG_COOKIE) {
       throw new Error("WANDERLOG_COOKIE must be set for integration tests");
     }
+    TRIP_KEY = await resolveTestTripKey();
   });
 
   afterEach(() => {

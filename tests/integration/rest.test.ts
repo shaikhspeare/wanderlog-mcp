@@ -1,16 +1,18 @@
 import { beforeAll, describe, expect, it } from "vitest";
 import { loadConfig } from "../../src/config.ts";
 import { RestClient } from "../../src/transport/rest.ts";
+import { resolveTestTripKey } from "./test-trip.ts";
 
-const TRIP_KEY = process.env.WANDERLOG_TRIP_KEY ?? "vzyrsyhgxvonvxcz";
+let TRIP_KEY: string;
 
 describe("RestClient (live)", () => {
   let client: RestClient;
 
-  beforeAll(() => {
+  beforeAll(async () => {
     if (!process.env.WANDERLOG_COOKIE) {
       throw new Error("WANDERLOG_COOKIE must be set for integration tests");
     }
+    TRIP_KEY = await resolveTestTripKey();
     client = new RestClient(loadConfig());
   });
 

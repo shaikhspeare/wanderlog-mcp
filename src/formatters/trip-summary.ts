@@ -69,10 +69,16 @@ function renderSection(section: Section, format: ResponseFormat): string | null 
     .map((b) => formatBlockLine(b, format))
     .filter(Boolean) as string[];
 
-  if (!sectionText && blockLines.length === 0) return null;
-
   const icon = sectionIcon(section);
   const heading = section.heading?.trim() || sectionDefaultHeading(section);
+
+  // Empty user-created lists must stay visible so the agent can discover and target them.
+  if (!sectionText && blockLines.length === 0) {
+    const isNamedPlaceList =
+      section.type === "normal" && section.mode === "placeList" && !!section.heading?.trim();
+    return isNamedPlaceList ? `${icon} ${heading}\n  (empty list)` : null;
+  }
+
   const parts = [`${icon} ${heading}`];
   if (sectionText) parts.push(sectionText);
   if (blockLines.length > 0) {

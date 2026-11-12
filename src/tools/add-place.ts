@@ -8,11 +8,15 @@ import type { PlaceData } from "../types.js";
 import {
   buildNoteDelta,
   buildPlaceBlock,
+  buildSectionObject,
+  describeAvailableLists,
   findBlockById,
   findDaySectionByDate,
   findPlacesToVisitSection,
-  findSectionByRef,
   findTripCenter,
+  headingsOf,
+  isSystemSection,
+  resolveListRef,
   requireUserId,
   submitOp,
   validateTimeInputs,
@@ -47,7 +51,13 @@ export const addPlaceInputSchema = {
     .string()
     .optional()
     .describe(
-      "Optional custom section to also add the place to, identified by its heading (e.g. 'Food & Drink', 'Must-See Spots'). Can be combined with 'day' to insert the place into both locations in a single call.",
+      "Optional custom list (section) to add the place to, identified by its heading (e.g. 'Food & Drink', 'Must-See Spots'). Matching is forgiving: case, punctuation and '&' vs 'and' are ignored, and a unique partial name works ('coffee' → 'Coffee Shops'). Can be combined with 'day' to insert the place into both locations in a single call.",
+    ),
+  create_list_if_missing: z
+    .boolean()
+    .optional()
+    .describe(
+      "When true and 'section' matches no existing list, create a new list with exactly that heading at the end of the trip and add the place to it. Saves a separate wanderlog_add_section call. With this flag, only equivalent names count as a match ('coffee shops' = 'Coffee Shop'); a partial match like 'Coffee' vs 'Coffee Roasters' creates the new list instead.",
     ),
   note: z
     .string()
@@ -87,6 +97,10 @@ wanderlog_add_note call because the note lives on the place itself in the itiner
 Use standalone wanderlog_add_note only for freestanding commentary between places (neighborhood
 context, multi-stop transit, day-level tips that aren't about a specific place).
 
+To add to a custom list (e.g. "Coffee Shops", "Food & Drink"), pass its heading as "section".
+Set "create_list_if_missing": true to create the list on the fly if it doesn't exist yet.
+To move a place that's already in the trip into a list, use wanderlog_move_place instead.
+
 Returns a confirmation including the resolved place name and where it was added.
 `.trim();
 
@@ -96,6 +110,7 @@ type Args = {
   place_id?: string;
   day?: string;
   section?: string;
+  create_list_if_missing?: boolean;
   note?: string;
   start_time?: string;
   end_time?: string;
@@ -150,6 +165,7 @@ export async function addPlace(
 
     const mutation = await submitOp(ctx, args.trip_key, async (lockedEntry, submit) => {
       const trip = lockedEntry.snapshot;
+      const tripTitle = trip.title;
       type Target = { sectionId: number; label: string };
       const targets: Target[] = [];
 
@@ -162,13 +178,41 @@ export async function addPlace(
         targets.push({ sectionId: found.section.id, label: `day ${daySection.date}` });
       }
       if (args.section) {
-        const found = findSectionByRef(trip, args.section);
-        if (!found) {
+        const resolved = resolveListRef(trip, args.section, {
+          allowPartial: !args.create_list_if_missing,
+        });
+        if (resolved.kind === "ambiguous") {
           throw new WanderlogValidationError(
-            `Section "${args.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+            `List "${args.section}" matches several lists in trip "${trip.title}": ${headingsOf(trip, resolved.candidates)}. Retry with the exact heading.`,
           );
         }
-        targets.push({ sectionId: found.section.id, label: `section "${args.section}"` });
+        if (resolved.kind === "none") {
+          if (!args.create_list_if_missing) {
+            throw new WanderlogValidationError(
+              `List "${args.section}" not found in trip "${trip.title}". ${describeAvailableLists(trip)} Pass create_list_if_missing: true to create it, or use wanderlog_add_section.`,
+            );
+          }
+          const heading = args.section.trim();
+          const created = buildSectionObject(heading);
+          await submit([
+            { p: ["itinerary", "sections", trip.itinerary.sections.length], li: created },
+          ]);
+          targets.push({ sectionId: created.id, label: `new list "${heading}"` });
+        } else {
+          const found = resolved.match;
+          if (found.section.mode === "dayPlan") {
+            throw new WanderlogValidationError(
+              `"${args.section}" is a dated itinerary day. Use the "day" parameter instead.`,
+            );
+          }
+          if (isSystemSection(found.section)) {
+            throw new WanderlogValidationError(
+              `"${args.section}" is a ${found.section.type} section, not a place list. ${describeAvailableLists(trip)}`,
+            );
+          }
+          const heading = found.section.heading.trim() || args.section;
+          targets.push({ sectionId: found.section.id, label: `list "${heading}"` });
+        }
       }
       if (targets.length === 0) {
         const places = findPlacesToVisitSection(trip);
@@ -243,7 +287,7 @@ export async function addPlace(
       }
       return {
         labelList: targets.map((target) => target.label).join(" and "),
-        tripTitle: trip.title,
+        tripTitle,
       };
     });
 
