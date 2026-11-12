@@ -190,6 +190,138 @@ export function resolveSectionRef(trip: TripPlan, ref: string): SectionRefResult
   return { kind: "ambiguous", candidates };
 }
 
+const FILLER_WORDS = new Set(["the", "my", "our", "a", "an", "list", "lists", "section"]);
+
+function listWords(value: string): string[] {
+  return value
+    .normalize("NFD")
+    .replace(/\p{M}+/gu, "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/['’]/g, "")
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(Boolean);
+}
+
+function singular(word: string): string {
+  if (word.length > 4 && word.endsWith("ies")) return `${word.slice(0, -3)}y`;
+  if (word.length > 3 && word.endsWith("s") && !word.endsWith("ss")) return word.slice(0, -1);
+  return word;
+}
+
+/**
+ * Words that identify a list: accents, case, punctuation, "&"/"and", plurals and
+ * filler like "my … list" removed. Falls back to the raw words when a heading is
+ * made only of filler (a list literally named "My List").
+ */
+function canonicalWords(value: string): string[] {
+  const words = listWords(value).map(singular);
+  const meaningful = words.filter((word) => !FILLER_WORDS.has(word));
+  return meaningful.length > 0 ? meaningful : words;
+}
+
+function listHeadingOf(trip: TripPlan, index: number): string {
+  const section = trip.itinerary.sections[index]!;
+  if (findPlacesToVisitSection(trip)?.index === index) return "Places to visit";
+  return section.heading.trim();
+}
+
+/** Undated, non-system sections that can hold places, notes, and checklists. */
+export function listUndatedLists(trip: TripPlan): Array<SectionMatch & { heading: string }> {
+  const lists: Array<SectionMatch & { heading: string }> = [];
+  trip.itinerary.sections.forEach((section, index) => {
+    if (section.mode === "dayPlan" || isSystemSection(section)) return;
+    lists.push({ index, section, heading: listHeadingOf(trip, index) || "(untitled)" });
+  });
+  return lists;
+}
+
+export function describeAvailableLists(trip: TripPlan): string {
+  const headings = listUndatedLists(trip).map((list) => `"${list.heading}"`);
+  return headings.length > 0
+    ? `Available lists: ${headings.join(", ")}.`
+    : "The trip has no lists.";
+}
+
+export type ListRefOptions = {
+  /** Allow "coffee" → "Coffee Shops". Off when the caller would otherwise create a new list. */
+  allowPartial?: boolean;
+};
+
+/**
+ * Resolves a list name the way a person would say it, trying progressively looser
+ * tiers and stopping at the first tier with any match:
+ *   1. exact heading among undated lists (plus the "places" alias for the default list)
+ *   2. canonical form among lists (case, accents, punctuation, "&", plurals,
+ *      "my … list" ignored)
+ *   3. exact heading on a dated day / system section, so callers can explain the mix-up
+ *   4. partial: every word of the ref prefixes a word of the heading; the heading
+ *      with the highest share of covered words wins, ties are ambiguous
+ * Lists are preferred over same-named days, so a list called "Arrival day" is never
+ * rejected just because a day carries that heading too. Only genuinely
+ * indistinguishable candidates come back ambiguous.
+ */
+export function resolveListRef(
+  trip: TripPlan,
+  ref: string,
+  { allowPartial = true }: ListRefOptions = {},
+): SectionRefResult {
+  const lists = listUndatedLists(trip);
+  const toResult = (matches: SectionMatch[]): SectionRefResult => {
+    if (matches.length === 0) return { kind: "none" };
+    if (matches.length === 1) {
+      return { kind: "unique", match: { index: matches[0]!.index, section: matches[0]!.section } };
+    }
+    return {
+      kind: "ambiguous",
+      candidates: matches.map(({ index, section }) => ({ index, section })),
+    };
+  };
+
+  const trimmed = ref.trim().toLowerCase();
+  if (!trimmed) return { kind: "none" };
+
+  const exactLists = lists.filter((list) => list.heading.toLowerCase() === trimmed);
+  if (exactLists.length > 0) return toResult(exactLists);
+  if (trimmed === "places") {
+    const defaults = findPlacesToVisitSection(trip);
+    if (defaults) return { kind: "unique", match: defaults };
+  }
+
+  const wanted = canonicalWords(ref);
+  const scored = lists.map((list) => ({ ...list, words: canonicalWords(list.heading) }));
+
+  const wantedKey = wanted.join(" ");
+  const canonical = scored.filter((list) => list.words.join(" ") === wantedKey);
+  if (canonical.length > 0) return toResult(canonical);
+
+  const exactAny = resolveSectionRef(trip, ref);
+  if (exactAny.kind !== "none") return exactAny;
+
+  if (!allowPartial || wantedKey.length < 3) return { kind: "none" };
+
+  const partial = scored
+    .map((list) => {
+      const used = new Set<number>();
+      for (const word of wanted) {
+        const hit = list.words.findIndex(
+          (candidate, i) => !used.has(i) && candidate.startsWith(word),
+        );
+        if (hit < 0) return null;
+        used.add(hit);
+      }
+      return { ...list, coverage: used.size / list.words.length };
+    })
+    .filter((list): list is NonNullable<typeof list> => list !== null);
+  if (partial.length === 0) return { kind: "none" };
+  const best = Math.max(...partial.map((list) => list.coverage));
+  return toResult(partial.filter((list) => list.coverage === best));
+}
+
+export function headingsOf(trip: TripPlan, candidates: SectionMatch[]): string {
+  return candidates.map((c) => `"${listHeadingOf(trip, c.index) || "(untitled)"}"`).join(", ");
+}
+
 const SYSTEM_SECTION_TYPES = new Set(["hotels", "flights", "transit", "rentalCars"]);
 
 export function isSystemSection(section: Section): boolean {
@@ -399,12 +531,18 @@ export function findBlockTargetSection(
   blockLabel: string,
 ): TargetSection {
   if (target.section !== undefined) {
-    const found = findSectionByRef(trip, target.section);
-    if (!found) {
+    const resolved = resolveListRef(trip, target.section);
+    if (resolved.kind === "none") {
       throw new WanderlogValidationError(
-        `Section "${target.section}" not found in trip "${trip.title}". Use wanderlog_get_trip to see available sections.`,
+        `Section "${target.section}" not found in trip "${trip.title}". ${describeAvailableLists(trip)} Create a new list with wanderlog_add_section.`,
       );
     }
+    if (resolved.kind === "ambiguous") {
+      throw new WanderlogValidationError(
+        `Section "${target.section}" matches several lists: ${headingsOf(trip, resolved.candidates)}. Retry with the exact heading.`,
+      );
+    }
+    const found = resolved.match;
     if (found.section.mode === "dayPlan") {
       throw new WanderlogValidationError(
         `Section "${found.section.heading || target.section}" is a dated section. Use the "day" parameter to add a ${blockLabel} to an itinerary day.`,
